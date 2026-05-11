@@ -1,0 +1,17 @@
+node_modules/
+dist/
+target/
+*.log
+.DS_Store
+
+# Tauri/sidecar generated outputs
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/binaries/*
+!app/src-tauri/binaries/.gitkeep
+
+# IDE/local environment
+.idea/
+.vscode/
+.env
+.env.*

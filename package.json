@@ -1,0 +1,28 @@
+{
+  "name": "studio-sound",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "app"
+  ],
+  "scripts": {
+    "setup": "node scripts/check-prereqs.mjs && npm install && npm run sidecar:build",
+    "start": "npm run sidecar:build && npm run dev -w app",
+    "dev": "npm start",
+    "build": "npm run sidecar:build && npm run build -w app",
+    "lint": "npm run lint -w app && npm run sidecar:lint",
+    "format": "prettier --write . && npm run sidecar:fmt",
+    "test": "npm run test -w app && npm run sidecar:test",
+    "sidecar:build": "node scripts/build-sidecar.mjs",
+    "sidecar:test": "cd sidecar && go test ./...",
+    "sidecar:fmt": "cd sidecar && go fmt ./...",
+    "sidecar:lint": "cd sidecar && golangci-lint run ./..."
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
+}

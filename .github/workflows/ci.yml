@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  validate:
+    name: Validate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-26-intel
+          - macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: sidecar/go.mod
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          golangci-lint --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build sidecar
+        run: npm run sidecar:build
+
+      - name: Verify sidecar artifacts
+        run: |
+          node -e 'const fs = require("fs"); const paths = ["app/src-tauri/binaries/studio-sidecar-x86_64-pc-windows-msvc.exe", "app/src-tauri/binaries/studio-sidecar-x86_64-apple-darwin", "app/src-tauri/binaries/studio-sidecar-aarch64-apple-darwin"]; for (const path of paths) { if (!fs.existsSync(path)) { console.error("Missing " + path); process.exit(1); } }'
+
+      - name: Build app
+        run: npm run build -w app

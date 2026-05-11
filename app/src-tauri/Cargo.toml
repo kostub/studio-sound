@@ -1,0 +1,17 @@
+[package]
+name = "studio-sound-app"
+version = "0.0.1"
+description = "Studio Sound App"
+authors = ["Studio Sound"]
+edition = "2021"
+default-run = "studio-sound-app"
+
+[lib]
+name = "studio_sound_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

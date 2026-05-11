@@ -1,0 +1,8 @@
+node_modules/
+package-lock.json
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/binaries/
+app/src-tauri/icons/*.svg
+sidecar/bin/
