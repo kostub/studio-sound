@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://studiosound.app/schemas/system.shutdown.schema.json",
+  "title": "SystemShutdown",
+  "type": "object",
+  "$defs": {
+    "ShutdownPayload": { "type": "null" },
+    "ShutdownResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accepted"],
+      "properties": { "accepted": { "type": "boolean", "const": true } }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const schemasDir = resolve(rootDir, 'schemas');
+const tsOutDir = resolve(rootDir, 'app/src/ipc/generated');
+const goOutDir = resolve(rootDir, 'sidecar/internal/ipc/generated');
+const rustOutFile = resolve(rootDir, 'app/src-tauri/src/ipc/generated.rs');
+
+const schemaFiles = [
+  'envelope.schema.json',
+  'system.ping.schema.json',
+  'system.echo.schema.json',
+  'system.shutdown.schema.json',
+];
+
+function run(cmd, args, opts = {}) {
+  const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: rootDir, ...opts });
+  if (r.status !== 0) {
+    console.error(`gen-schemas: '${cmd} ${args.join(' ')}' failed (${r.status})`);
+    process.exit(r.status ?? 1);
+  }
+}
+
+mkdirSync(tsOutDir, { recursive: true });
+mkdirSync(goOutDir, { recursive: true });
+mkdirSync(dirname(rustOutFile), { recursive: true });
+
+for (const file of schemaFiles) {
+  const base = file.replace(/\.schema\.json$/, '');
+  const out = resolve(tsOutDir, `${base}.ts`);
+  run('npx', ['--no-install', 'json-schema-to-typescript', resolve(schemasDir, file), '-o', out]);
+}
+
+const goJsonschema = process.env.GO_JSONSCHEMA_BIN ?? 'go-jsonschema';
+for (const file of schemaFiles) {
+  const base = file.replace(/\.schema\.json$/, '').replace(/\./g, '_');
+  const out = resolve(goOutDir, `${base}.go`);
+  if (existsSync(out)) rmSync(out);
+  run(goJsonschema, [
+    '--package', 'generated',
+    '--output', out,
+    resolve(schemasDir, file),
+  ]);
+}
+
+const typify = process.env.TYPIFY_BIN ?? 'cargo-typify';
+run(typify, ['typify', resolve(schemasDir, 'envelope.schema.json'), '--output', rustOutFile]);
+
+console.log('gen-schemas: wrote', tsOutDir, goOutDir, rustOutFile);
