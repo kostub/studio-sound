@@ -5,7 +5,17 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "shell:allow-execute",
-    "shell:allow-spawn"
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "studio-sidecar", "sidecar": true, "args": ["serve"] }
+      ]
+    },
+    {
+      "identifier": "shell:allow-stdin-write",
+      "allow": [
+        { "name": "studio-sidecar", "sidecar": true, "args": ["serve"] }
+      ]
+    }
   ]
 }

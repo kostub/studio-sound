@@ -22,11 +22,11 @@ runtime. We need a well-defined IPC contract that:
 
 Several transport options were considered:
 
-| Option | Description |
-|---|---|
-| **A — NDJSON over stdin/stdout** | Newline-delimited JSON envelopes exchanged over the sidecar's stdin/stdout pipes. Tauri's `tauri-plugin-shell` manages the child process and its stdio handles. |
-| **B — HTTP/WebSocket on localhost** | Sidecar binds a random port; Tauri queries it via `fetch` or a WebSocket. |
-| **C — Named pipe / Unix domain socket** | Platform-specific IPC socket; sidecar and Tauri negotiate a path. |
+| Option                                  | Description                                                                                                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — NDJSON over stdin/stdout**        | Newline-delimited JSON envelopes exchanged over the sidecar's stdin/stdout pipes. Tauri's `tauri-plugin-shell` manages the child process and its stdio handles. |
+| **B — HTTP/WebSocket on localhost**     | Sidecar binds a random port; Tauri queries it via `fetch` or a WebSocket.                                                                                       |
+| **C — Named pipe / Unix domain socket** | Platform-specific IPC socket; sidecar and Tauri negotiate a path.                                                                                               |
 
 ---
 
@@ -56,6 +56,7 @@ shape. A single `npm run gen:schemas` command regenerates the committed types
 for all three languages; CI fails if the tree is dirty after running it.
 
 **Sidecar CLI surface.** The sidecar binary exposes two subcommands:
+
 - `studio-sidecar health` — retained for Phase 0 smoke tests; unchanged.
 - `studio-sidecar serve` — long-lived IPC loop reading from stdin and writing
   to stdout. Spawned by the Rust supervisor with `args: ["serve"]`.
@@ -65,6 +66,7 @@ for all three languages; CI fails if the tree is dirty after running it.
 ## Consequences
 
 **Positive:**
+
 - Zero network dependencies: no listening sockets, no firewall prompts, no
   port allocation, no TLS plumbing.
 - Lifetime is coupled to the parent process by design: when the Tauri app
@@ -76,6 +78,7 @@ for all three languages; CI fails if the tree is dirty after running it.
 - Simple to debug locally: `echo '{"v":1,...}' | ./studio-sidecar serve`.
 
 **Negative / trade-offs:**
+
 - Ad-hoc debugging with `curl` is not possible (no HTTP endpoint).
 - Protocol upgrades require careful versioning: the `v` field signals the
   protocol version; mismatches produce `PROTOCOL_VERSION_MISMATCH` errors.
@@ -104,5 +107,4 @@ is marginal for our single-client, request/response workload.
 ## References
 
 - Wire format spec: [docs/ipc-contract.md](../ipc-contract.md)
-- Requirements: [docs/reqs/phase1-ipc-contract.md](../reqs/phase1-ipc-contract.md)
-- Low-Level Design: [docs/lld/2026-05-14-phase-1-ipc-contract.md](../lld/2026-05-14-phase-1-ipc-contract.md)
+- Implementation plan: [docs/implementation_plan.md](../implementation_plan.md)

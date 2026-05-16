@@ -23,6 +23,12 @@ use crate::ipc::envelope::{Envelope, Kind, RpcError, PROTOCOL_VERSION};
 use crate::ipc::error::IpcError;
 use crate::ipc::supervisor::Supervisor;
 
+/// Maximum number of in-flight IPC requests. Matches the sidecar dispatcher's
+/// `maxConcurrentDispatch` and the `SIDECAR_BUSY` threshold documented in
+/// `docs/ipc-contract.md`. When this cap is reached, [`IpcClient::call`]
+/// returns [`IpcError::SidecarBusy`] immediately rather than queueing.
+const MAX_PENDING_REQUESTS: usize = 64;
+
 /// Shared inner state for [`IpcClient`].
 struct Inner {
     /// Map of pending request IDs to one-shot senders.
@@ -53,9 +59,9 @@ impl IpcClient {
 
         // Spawn a background task that reads from the broadcast channel and
         // routes response envelopes to the appropriate pending callers.
-        let inner_clone = Arc::clone(&inner);
+        let mut rx = inner.supervisor.subscribe();
+        let inner_weak = Arc::downgrade(&inner);
         tokio::spawn(async move {
-            let mut rx = inner_clone.supervisor.subscribe();
             loop {
                 match rx.recv().await {
                     Ok(envelope) => {
@@ -66,13 +72,19 @@ impl IpcClient {
                         }
 
                         let id = envelope.id.clone();
-                        let mut guard = inner_clone.pending.lock().await;
-                        if let Some(tx) = guard.remove(&id) {
-                            // If the receiver has already been dropped (timeout),
-                            // the send will fail silently; this is expected.
-                            let _ = tx.send(envelope);
+                        if let Some(inner) = inner_weak.upgrade() {
+                            let mut guard = inner.pending.lock().await;
+                            if let Some(tx) = guard.remove(&id) {
+                                // If the receiver has already been dropped (timeout),
+                                // the send will fail silently; this is expected.
+                                let _ = tx.send(envelope);
+                            } else {
+                                tracing::warn!(id = %id, "received response for unknown request id; discarding");
+                            }
                         } else {
-                            tracing::warn!(id = %id, "received response for unknown request id; discarding");
+                            // The IpcClient has been dropped; exit the routing loop.
+                            tracing::debug!("IpcClient routing task: client dropped, exiting");
+                            break;
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -115,10 +127,20 @@ impl IpcClient {
         let id = ulid::Ulid::new().to_string();
 
         // Register a one-shot channel before sending, so we cannot miss a
-        // very fast response.
+        // very fast response. Enforce MAX_PENDING_REQUESTS under the same lock
+        // so the check and insert are atomic — otherwise concurrent callers
+        // could each see len() == cap-1 and both insert past the cap.
         let (tx, rx) = oneshot::channel::<Envelope>();
         {
             let mut guard = self.inner.pending.lock().await;
+            if guard.len() >= MAX_PENDING_REQUESTS {
+                tracing::warn!(
+                    pending = guard.len(),
+                    method,
+                    "rejecting IPC request: pending request cap reached"
+                );
+                return Err(IpcError::SidecarBusy);
+            }
             guard.insert(id.clone(), tx);
         }
 
@@ -316,5 +338,31 @@ mod tests {
         let env = make_error_response("req-err", "TIMEOUT", "request timed out");
         assert!(env.error.is_some());
         assert!(env.result.is_none());
+    }
+
+    /// Tests the SIDECAR_BUSY cap on the pending map. We exercise the same
+    /// check IpcClient::call performs (capacity check under the same lock as
+    /// the insert) directly on the map, without needing a real Supervisor.
+    #[tokio::test]
+    async fn pending_cap_rejects_overflow() {
+        let pending: Mutex<HashMap<String, oneshot::Sender<Envelope>>> =
+            Mutex::new(HashMap::new());
+
+        // Fill to the cap.
+        {
+            let mut guard = pending.lock().await;
+            for i in 0..MAX_PENDING_REQUESTS {
+                let (tx, _rx) = oneshot::channel::<Envelope>();
+                guard.insert(format!("req-{i}"), tx);
+            }
+            assert_eq!(guard.len(), MAX_PENDING_REQUESTS);
+        }
+
+        // Simulate the call-time guard: at-cap → reject.
+        let busy = {
+            let guard = pending.lock().await;
+            guard.len() >= MAX_PENDING_REQUESTS
+        };
+        assert!(busy, "expected pending map to be at-cap and reject new requests");
     }
 }

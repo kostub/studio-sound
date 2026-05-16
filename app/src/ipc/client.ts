@@ -44,12 +44,7 @@ function toIpcError(err: unknown): IpcError {
     // Tauri serialises command errors as plain strings.
     return { code: 'UNKNOWN', message: err };
   }
-  if (
-    err !== null &&
-    typeof err === 'object' &&
-    'code' in err &&
-    'message' in err
-  ) {
+  if (err !== null && typeof err === 'object' && 'code' in err && 'message' in err) {
     return err as IpcError;
   }
   return { code: 'UNKNOWN', message: String(err) };

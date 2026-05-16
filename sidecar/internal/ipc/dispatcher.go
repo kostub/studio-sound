@@ -35,15 +35,39 @@ func (d *Dispatcher) Register(method string, h Handler) {
 	d.handlers[method] = h
 }
 
+var (
+	newline = []byte{'\n'}
+)
+
+// maxConcurrentDispatch caps the number of in-flight handler goroutines.
+// Documented in docs/ipc-contract.md as the SIDECAR_BUSY threshold.
+const maxConcurrentDispatch = 64
+
 func (d *Dispatcher) Serve(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	var wmu sync.Mutex
 	writeLine := func(b []byte) {
 		wmu.Lock()
 		defer wmu.Unlock()
-		_, _ = stdout.Write(append(b, '\n'))
+		_, _ = stdout.Write(b)
+		_, _ = stdout.Write(newline)
 	}
 
 	reader := bufio.NewReaderSize(stdin, maxMessageSize+1)
+
+	// If ctx is cancelled while we're blocked in readLine, close stdin so the
+	// blocking syscall returns. Without this, system.shutdown cancels ctx but
+	// the readLine call only unblocks when its caller (e.g. the Rust
+	// supervisor) closes the write end of the pipe.
+	if closer, ok := stdin.(io.Closer); ok {
+		closeOnce := sync.Once{}
+		go func() {
+			<-ctx.Done()
+			closeOnce.Do(func() { _ = closer.Close() })
+		}()
+	}
+
+	// Bounded semaphore: cap concurrent in-flight handler goroutines.
+	sem := make(chan struct{}, maxConcurrentDispatch)
 
 	var wg sync.WaitGroup
 	for {
@@ -61,12 +85,28 @@ func (d *Dispatcher) Serve(ctx context.Context, stdin io.Reader, stdout io.Write
 			if errors.Is(err, io.EOF) {
 				return io.EOF
 			}
+			// If ctx was cancelled, the stdin Close above may have surfaced
+			// as a "file already closed" error — translate that to ctx.Err().
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			return err
+		}
+
+		// Acquire a dispatch slot before launching the goroutine. We tolerate
+		// brief blocking here on the read loop — this is the documented
+		// back-pressure mechanism for in-flight requests.
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return ctx.Err()
 		}
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() { <-sem }()
 			d.dispatch(ctx, line, writeLine)
 		}()
 	}
@@ -127,11 +167,12 @@ func (d *Dispatcher) dispatch(ctx context.Context, line []byte, write func([]byt
 		var code string
 		if errors.Is(err, ErrMessageTooLarge) {
 			code = CodeMessageTooLarge
+		} else if errors.Is(err, ErrProtocolVersionMismatch) {
+			code = CodeProtocolVersionMismatch
 		} else {
 			code = CodeMalformedEnvelope
 		}
-		b, _ := EncodeError(env.ID, NewRPCError(code, err.Error()))
-		write(b)
+		d.writeError(write, env.ID, NewRPCError(code, err.Error()), "decode error")
 		return
 	}
 
@@ -140,16 +181,14 @@ func (d *Dispatcher) dispatch(ctx context.Context, line []byte, write func([]byt
 	d.mu.RUnlock()
 
 	if !ok {
-		b, _ := EncodeError(env.ID, NewRPCError(CodeUnknownMethod, "unknown method: "+env.Method))
-		write(b)
+		d.writeError(write, env.ID, NewRPCError(CodeUnknownMethod, "unknown method: "+env.Method), "unknown method")
 		return
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
 			d.log.Error("handler panic", "method", env.Method, "panic", r)
-			b, _ := EncodeError(env.ID, NewRPCError(CodeInternalError, "internal error"))
-			write(b)
+			d.writeError(write, env.ID, NewRPCError(CodeInternalError, "internal error"), "handler panic")
 		}
 	}()
 
@@ -157,15 +196,34 @@ func (d *Dispatcher) dispatch(ctx context.Context, line []byte, write func([]byt
 	if herr != nil {
 		var rpcErr *RPCError
 		if errors.As(herr, &rpcErr) {
-			b, _ := EncodeError(env.ID, rpcErr)
-			write(b)
+			d.writeError(write, env.ID, rpcErr, "handler RPCError")
 		} else {
-			b, _ := EncodeError(env.ID, NewRPCError(CodeInternalError, herr.Error()))
-			write(b)
+			d.writeError(write, env.ID, NewRPCError(CodeInternalError, herr.Error()), "handler error")
 		}
 		return
 	}
 
-	b, _ := EncodeResponse(env.ID, result)
+	b, err := EncodeResponse(env.ID, result)
+	if err != nil {
+		d.log.Error("failed to encode response", "id", env.ID, "method", env.Method, "error", err)
+		// Fall back to an INTERNAL_ERROR envelope so the caller doesn't hang
+		// until its timeout fires. The fallback only references concrete
+		// string fields, so it cannot fail for the same reason.
+		d.writeError(write, env.ID, NewRPCError(CodeInternalError, "failed to encode response"), "response encode failure")
+		return
+	}
+	write(b)
+}
+
+// writeError encodes an RPC error envelope and writes it. If encoding fails
+// (only possible for exotic RPCError shapes that should never occur in
+// practice), the failure is logged and the envelope is dropped — there is no
+// further fallback to attempt.
+func (d *Dispatcher) writeError(write func([]byte), id string, rpcErr *RPCError, errContext string) {
+	b, err := EncodeError(id, rpcErr)
+	if err != nil {
+		d.log.Error("failed to encode error envelope", "context", errContext, "id", id, "error", err)
+		return
+	}
 	write(b)
 }

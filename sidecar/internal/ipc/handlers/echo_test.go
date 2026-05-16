@@ -4,11 +4,47 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/studio-sound/studio/sidecar/internal/ipc"
 )
+
+// TestEchoMaxChars_MatchesCanonicalSchema guards against drift between the
+// Go-side echoMaxChars constant and the canonical JSON Schema's maxLength.
+// If this fails, update either the constant or schemas/system.echo.schema.json
+// so they agree, and rerun `npm run gen:schemas`.
+func TestEchoMaxChars_MatchesCanonicalSchema(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	// internal/ipc/handlers/echo_test.go → repo root → schemas/...
+	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
+	schemaPath := filepath.Join(repoRoot, "schemas", "system.echo.schema.json")
+	raw, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Skipf("canonical schema not readable at %s: %v", schemaPath, err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("parse %s: %v", schemaPath, err)
+	}
+	defs, _ := schema["$defs"].(map[string]any)
+	payload, _ := defs["EchoPayload"].(map[string]any)
+	props, _ := payload["properties"].(map[string]any)
+	text, _ := props["text"].(map[string]any)
+	got, ok := text["maxLength"].(float64)
+	if !ok {
+		t.Fatalf("EchoPayload.text.maxLength missing or not a number in %s", schemaPath)
+	}
+	if int(got) != echoMaxChars {
+		t.Errorf("canonical schema maxLength=%d but echoMaxChars=%d (must match)", int(got), echoMaxChars)
+	}
+}
 
 func TestEchoHandler_HappyPath(t *testing.T) {
 	payload := json.RawMessage(`{"text":"hello world"}`)
@@ -48,8 +84,8 @@ func TestEchoHandler_EmptyText(t *testing.T) {
 }
 
 func TestEchoHandler_TooLongText(t *testing.T) {
-	// Build a string > 1024 bytes.
-	longText := strings.Repeat("a", 1025)
+	// Build a string > 4096 characters.
+	longText := strings.Repeat("a", 4097)
 	payload, _ := json.Marshal(map[string]string{"text": longText})
 
 	_, err := EchoHandler(context.Background(), "test-id", json.RawMessage(payload))
@@ -67,16 +103,39 @@ func TestEchoHandler_TooLongText(t *testing.T) {
 }
 
 func TestEchoHandler_ExactlyAtLimit(t *testing.T) {
-	// Exactly 1024 bytes should be allowed.
-	text := strings.Repeat("a", 1024)
+	// Exactly 4096 characters should be allowed.
+	text := strings.Repeat("a", 4096)
 	payload, _ := json.Marshal(map[string]string{"text": text})
 
 	result, err := EchoHandler(context.Background(), "test-id", json.RawMessage(payload))
 	if err != nil {
-		t.Fatalf("expected nil error for exactly-1024-byte text, got: %v", err)
+		t.Fatalf("expected nil error for exactly-4096-character text, got: %v", err)
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+	}
+}
+
+func TestEchoHandler_MultiByteCharacters(t *testing.T) {
+	// Emojis are multi-byte but count as 1 character (rune) each.
+	// 4096 🚀 emojis.
+	text := strings.Repeat("🚀", 4096)
+	payload, _ := json.Marshal(map[string]string{"text": text})
+
+	result, err := EchoHandler(context.Background(), "test-id", json.RawMessage(payload))
+	if err != nil {
+		t.Fatalf("expected nil error for 4096 emojis, got: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	// 4097 🚀 emojis should fail.
+	textTooLong := strings.Repeat("🚀", 4097)
+	payloadTooLong, _ := json.Marshal(map[string]string{"text": textTooLong})
+	_, err = EchoHandler(context.Background(), "test-id", json.RawMessage(payloadTooLong))
+	if err == nil {
+		t.Fatal("expected error for 4097 emojis, got nil")
 	}
 }
 
