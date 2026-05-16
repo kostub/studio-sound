@@ -10,7 +10,14 @@ import (
 // envelopes from stdin and writing responses to stdout. The log parameter is
 // used for structured logging within the dispatcher; pass a logger from the
 // logger package or a test logger.
-func Serve(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, log *slog.Logger) error {
+//
+// Handlers for the standard methods (system.ping, system.echo, etc.) are
+// registered by the caller (cli package) to avoid an import cycle between the
+// ipc package and the ipc/handlers sub-package.
+func Serve(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, log *slog.Logger, setup func(*Dispatcher)) error {
 	d := NewDispatcher(log)
+	if setup != nil {
+		setup(d)
+	}
 	return d.Serve(ctx, stdin, stdout)
 }
