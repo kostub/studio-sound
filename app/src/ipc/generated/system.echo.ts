@@ -8,3 +8,17 @@
 export interface SystemEcho {
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `SystemEcho`'s JSON-Schema
+ * via the `definition` "EchoPayload".
+ */
+export interface EchoPayload {
+  text: string;
+}
+/**
+ * This interface was referenced by `SystemEcho`'s JSON-Schema
+ * via the `definition` "EchoResult".
+ */
+export interface EchoResult {
+  text: string;
+}

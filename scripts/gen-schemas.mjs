@@ -32,7 +32,18 @@ mkdirSync(dirname(rustOutFile), { recursive: true });
 for (const file of schemaFiles) {
   const base = file.replace(/\.schema\.json$/, '');
   const out = resolve(tsOutDir, `${base}.ts`);
-  run('npx', ['--no-install', 'json-schema-to-typescript', resolve(schemasDir, file), '-o', out]);
+  // --unreachableDefinitions emits TS types for $defs that are not referenced
+  // from the schema root. Our method schemas (system.echo etc.) keep
+  // request/result types in $defs, so without this flag the generated file
+  // would only contain an empty root interface.
+  run('npx', [
+    '--no-install',
+    'json-schema-to-typescript',
+    '--unreachableDefinitions',
+    resolve(schemasDir, file),
+    '-o',
+    out,
+  ]);
 }
 
 const goJsonschema = process.env.GO_JSONSCHEMA_BIN ?? 'go-jsonschema';
