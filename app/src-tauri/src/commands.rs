@@ -75,3 +75,52 @@ pub async fn ipc_shutdown(
         .await
         .map_err(|e| e.to_string())
 }
+
+/// Opens the platform-specific application log directory in the system file manager
+/// (Finder on macOS, Explorer on Windows, or the default file manager on Linux).
+///
+/// The log directory is the Tauri-resolved `app_log_dir` for this application
+/// (`~/Library/Logs/com.studiosound.app/` on macOS, `%LOCALAPPDATA%\com.studiosound.app\Logs\` on Windows).
+#[tauri::command]
+pub async fn open_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("failed to resolve log directory: {e}"))?;
+
+    // Create the directory if it doesn't exist so the file manager can open it.
+    std::fs::create_dir_all(&log_dir)
+        .map_err(|e| format!("failed to create log directory: {e}"))?;
+
+    let path_str = log_dir
+        .to_str()
+        .ok_or_else(|| "log directory path is not valid UTF-8".to_string())?;
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path_str)
+            .spawn()
+            .map_err(|e| format!("failed to open log directory: {e}"))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(path_str)
+            .spawn()
+            .map_err(|e| format!("failed to open log directory: {e}"))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path_str)
+            .spawn()
+            .map_err(|e| format!("failed to open log directory: {e}"))?;
+    }
+
+    Ok(())
+}
