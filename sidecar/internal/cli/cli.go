@@ -10,6 +10,7 @@ import (
 	"github.com/studio-sound/studio/sidecar/internal/buildinfo"
 	"github.com/studio-sound/studio/sidecar/internal/health"
 	"github.com/studio-sound/studio/sidecar/internal/ipc"
+	"github.com/studio-sound/studio/sidecar/internal/ipc/handlers"
 	"github.com/studio-sound/studio/sidecar/internal/logger"
 )
 
@@ -48,7 +49,12 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		if err := ipc.Serve(ctx, stdin, stdout, stderr, log); err != nil && err != io.EOF {
+		setup := func(d *ipc.Dispatcher) {
+			d.Register("system.ping", handlers.PingHandler)
+			d.Register("system.echo", handlers.EchoHandler)
+			d.Register("system.shutdown", handlers.ShutdownHandler(cancel))
+		}
+		if err := ipc.Serve(ctx, stdin, stdout, stderr, log, setup); err != nil && err != io.EOF {
 			_, _ = fmt.Fprintf(stderr, "serve failed: %v\n", err)
 			return 1
 		}
