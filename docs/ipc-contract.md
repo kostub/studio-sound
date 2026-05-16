@@ -18,15 +18,15 @@ limit are rejected with a `MESSAGE_TOO_LARGE` error).
 
 ### Envelope fields
 
-| Field     | Type                            | Required | Notes |
-|-----------|---------------------------------|----------|-------|
-| `v`       | `integer` (must be `1`)        | always   | Protocol version. Mismatches produce `PROTOCOL_VERSION_MISMATCH`. |
-| `id`      | `string` (1–64 chars)          | always   | Correlation ID, echoed in the response. |
-| `kind`    | `"request"` / `"response"` / `"event"` | always | Requests come from Rust; responses come from Go. |
-| `method`  | `string`                        | requests | Dot-namespaced method name, e.g. `system.ping`. |
-| `payload` | `object` or `null`             | requests | Method-specific input. |
-| `result`  | `object` or `null`             | success responses | Method-specific output. |
-| `error`   | error object (see below)       | error responses | Present only on errors; mutually exclusive with `result`. |
+| Field     | Type                                   | Required          | Notes                                                             |
+| --------- | -------------------------------------- | ----------------- | ----------------------------------------------------------------- |
+| `v`       | `integer` (must be `1`)                | always            | Protocol version. Mismatches produce `PROTOCOL_VERSION_MISMATCH`. |
+| `id`      | `string` (1–64 chars)                  | always            | Correlation ID, echoed in the response.                           |
+| `kind`    | `"request"` / `"response"` / `"event"` | always            | Requests come from Rust; responses come from Go.                  |
+| `method`  | `string`                               | requests          | Dot-namespaced method name, e.g. `system.ping`.                   |
+| `payload` | `object` or `null`                     | requests          | Method-specific input.                                            |
+| `result`  | `object` or `null`                     | success responses | Method-specific output.                                           |
+| `error`   | error object (see below)               | error responses   | Present only on errors; mutually exclusive with `result`.         |
 
 ### Error object
 
@@ -40,18 +40,18 @@ limit are rejected with a `MESSAGE_TOO_LARGE` error).
 
 ### Reserved error codes
 
-| Code | Emitter | Meaning |
-|------|---------|---------|
-| `PROTOCOL_VERSION_MISMATCH` | Go | `v` field is not `1`. |
-| `MALFORMED_ENVELOPE` | Go | Envelope is not valid JSON or missing required fields. |
-| `UNKNOWN_METHOD` | Go | No handler registered for the requested method. |
-| `INVALID_PAYLOAD` | Go | Payload fails JSON Schema validation. |
-| `INTERNAL_ERROR` | Go | Unexpected handler panic or serialisation failure. |
-| `MESSAGE_TOO_LARGE` | Go / Rust | Message exceeds the 8 MiB limit. |
-| `ECHO_TOO_LONG` | Go | Echo `text` exceeds 4 096 characters. |
-| `SIDECAR_UNAVAILABLE` | Rust | Sidecar is not in the `Up` state. |
-| `SIDECAR_BUSY` | Rust | More than 64 requests are in flight. |
-| `TIMEOUT` | Rust | The per-method deadline expired before a response arrived. |
+| Code                        | Emitter   | Meaning                                                    |
+| --------------------------- | --------- | ---------------------------------------------------------- |
+| `PROTOCOL_VERSION_MISMATCH` | Go        | `v` field is not `1`.                                      |
+| `MALFORMED_ENVELOPE`        | Go        | Envelope is not valid JSON or missing required fields.     |
+| `UNKNOWN_METHOD`            | Go        | No handler registered for the requested method.            |
+| `INVALID_PAYLOAD`           | Go        | Payload fails JSON Schema validation.                      |
+| `INTERNAL_ERROR`            | Go        | Unexpected handler panic or serialisation failure.         |
+| `MESSAGE_TOO_LARGE`         | Go / Rust | Message exceeds the 8 MiB limit.                           |
+| `ECHO_TOO_LONG`             | Go        | Echo `text` exceeds 4 096 characters.                      |
+| `SIDECAR_UNAVAILABLE`       | Rust      | Sidecar is not in the `Up` state.                          |
+| `SIDECAR_BUSY`              | Rust      | More than 64 requests are in flight.                       |
+| `TIMEOUT`                   | Rust      | The per-method deadline expired before a response arrived. |
 
 ---
 
@@ -64,14 +64,16 @@ Liveness probe. Returns runtime information about the sidecar.
 **Request**
 
 ```json
-{"v":1,"id":"<id>","kind":"request","method":"system.ping","payload":null}
+{ "v": 1, "id": "<id>", "kind": "request", "method": "system.ping", "payload": null }
 ```
 
 **Response (success)**
 
 ```json
 {
-  "v": 1, "id": "<id>", "kind": "response",
+  "v": 1,
+  "id": "<id>",
+  "kind": "response",
   "result": {
     "pong": true,
     "sidecarVersion": "0.1.0",
@@ -81,12 +83,12 @@ Liveness probe. Returns runtime information about the sidecar.
 }
 ```
 
-| Result field | Type | Notes |
-|---|---|---|
-| `pong` | `true` | Always `true`. |
-| `sidecarVersion` | string | Matches `-ldflags "-X .../buildinfo.Version=<x>"`. |
-| `uptimeMs` | integer | Milliseconds since sidecar start. |
-| `supportedProtocolVersions` | integer[] | Currently `[1]`. |
+| Result field                | Type      | Notes                                              |
+| --------------------------- | --------- | -------------------------------------------------- |
+| `pong`                      | `true`    | Always `true`.                                     |
+| `sidecarVersion`            | string    | Matches `-ldflags "-X .../buildinfo.Version=<x>"`. |
+| `uptimeMs`                  | integer   | Milliseconds since sidecar start.                  |
+| `supportedProtocolVersions` | integer[] | Currently `[1]`.                                   |
 
 ---
 
@@ -97,23 +99,31 @@ Returns the same text it was sent. Useful for round-trip latency measurement.
 **Request**
 
 ```json
-{"v":1,"id":"<id>","kind":"request","method":"system.echo","payload":{"text":"hello"}}
+{ "v": 1, "id": "<id>", "kind": "request", "method": "system.echo", "payload": { "text": "hello" } }
 ```
 
-| Payload field | Type | Constraint |
-|---|---|---|
-| `text` | string | Required. Max 4 096 characters (Unicode code points). |
+| Payload field | Type   | Constraint                                            |
+| ------------- | ------ | ----------------------------------------------------- |
+| `text`        | string | Required. Max 4 096 characters (Unicode code points). |
 
 **Response (success)**
 
 ```json
-{"v":1,"id":"<id>","kind":"response","result":{"text":"hello"}}
+{ "v": 1, "id": "<id>", "kind": "response", "result": { "text": "hello" } }
 ```
 
 **Error: text too long**
 
 ```json
-{"v":1,"id":"<id>","kind":"response","error":{"code":"ECHO_TOO_LONG","message":"echo text exceeds maximum length of 1024 bytes"}}
+{
+  "v": 1,
+  "id": "<id>",
+  "kind": "response",
+  "error": {
+    "code": "ECHO_TOO_LONG",
+    "message": "echo text exceeds maximum length of 4096 characters"
+  }
+}
 ```
 
 ---
@@ -128,13 +138,13 @@ the process exits cleanly with code `0`.
 **Request**
 
 ```json
-{"v":1,"id":"<id>","kind":"request","method":"system.shutdown","payload":null}
+{ "v": 1, "id": "<id>", "kind": "request", "method": "system.shutdown", "payload": null }
 ```
 
 **Response**
 
 ```json
-{"v":1,"id":"<id>","kind":"response","result":{"accepted":true}}
+{ "v": 1, "id": "<id>", "kind": "response", "result": { "accepted": true } }
 ```
 
 ---
@@ -179,6 +189,7 @@ npm run gen:schemas
 ```
 
 This updates:
+
 - `app/src/ipc/generated/*.ts` — TypeScript types
 - `sidecar/internal/ipc/generated/*.go` — Go types
 - `app/src-tauri/src/ipc/generated.rs` — Rust types
@@ -245,7 +256,7 @@ In `app/src/ipc/client.ts`:
 
 ```ts
 export async function greet(name: string): Promise<GreetResult> {
-    return invoke<GreetResult>("greet", { name });
+  return invoke<GreetResult>('greet', { name });
 }
 ```
 
@@ -274,9 +285,9 @@ The Tauri layer writes to `<log_dir>/tauri.log` via `tracing-appender`.
 
 ### Log directory per OS
 
-| OS | Path |
-|----|------|
-| macOS | `~/Library/Logs/com.studiosound.app/` |
+| OS      | Path                                       |
+| ------- | ------------------------------------------ |
+| macOS   | `~/Library/Logs/com.studiosound.app/`      |
 | Windows | `%LOCALAPPDATA%\com.studiosound.app\Logs\` |
 
 The directory is created automatically on first launch if it does not exist.
@@ -305,7 +316,17 @@ echo '{"v":1,"id":"t1","kind":"request","method":"system.ping","payload":null}' 
 Expected response:
 
 ```json
-{"v":1,"id":"t1","kind":"response","result":{"pong":true,"sidecarVersion":"0.1.0","uptimeMs":0,"supportedProtocolVersions":[1]}}
+{
+  "v": 1,
+  "id": "t1",
+  "kind": "response",
+  "result": {
+    "pong": true,
+    "sidecarVersion": "0.1.0",
+    "uptimeMs": 0,
+    "supportedProtocolVersions": [1]
+  }
+}
 ```
 
 To run the Go-level E2E integration test:

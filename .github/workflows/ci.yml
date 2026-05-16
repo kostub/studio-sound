@@ -2,7 +2,8 @@ name: CI
 
 on:
   pull_request:
-  push:
+    types: [opened]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -46,7 +47,7 @@ jobs:
 
       - name: Install go-jsonschema
         run: |
-          go install github.com/omissis/go-jsonschema/cmd/go-jsonschema@v0.18.0
+          go install github.com/atombender/go-jsonschema@v0.18.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install cargo-typify
@@ -72,6 +73,9 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Integration tests (sidecar E2E)
+        run: cd sidecar && go test -tags=integration ./...
 
       - name: Build sidecar
         run: npm run sidecar:build

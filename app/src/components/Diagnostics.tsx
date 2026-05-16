@@ -8,7 +8,7 @@
  */
 
 import type { JSX } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { echo, ping } from '../ipc/client';
 import type { IpcError } from '../ipc/client';
@@ -66,22 +66,29 @@ export function Diagnostics(): JSX.Element {
   const [echoLoading, setEchoLoading] = useState(false);
   const [echoError, setEchoError] = useState<IpcError | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-
   // Run a ping on mount to check connectivity.
   useEffect(() => {
+    let mounted = true;
     setPingStatus({ kind: 'loading' });
     setPingError(null);
 
     ping()
       .then(() => {
-        setPingStatus({ kind: 'connected' });
+        if (mounted) {
+          setPingStatus({ kind: 'connected' });
+        }
       })
       .catch((err: unknown) => {
-        const ipcErr = err as IpcError;
-        setPingStatus({ kind: 'error', message: ipcErr.message });
-        setPingError(ipcErr);
+        if (mounted) {
+          const ipcErr = err as IpcError;
+          setPingStatus({ kind: 'error', message: ipcErr.message });
+          setPingError(ipcErr);
+        }
       });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // --- Echo handler ---
@@ -109,8 +116,7 @@ export function Diagnostics(): JSX.Element {
 
       {/* Connectivity */}
       <div>
-        <strong>Sidecar status:</strong>{' '}
-        <StatusBadge status={pingStatus} />
+        <strong>Sidecar status:</strong> <StatusBadge status={pingStatus} />
         {pingError !== null && <IpcErrorBlock err={pingError} />}
       </div>
 
@@ -119,7 +125,6 @@ export function Diagnostics(): JSX.Element {
         <label htmlFor="echo-input">Echo</label>
         <input
           id="echo-input"
-          ref={inputRef}
           type="text"
           value={echoText}
           onChange={(e) => {
@@ -128,17 +133,11 @@ export function Diagnostics(): JSX.Element {
           placeholder="Type something…"
           disabled={echoLoading}
         />
-        <button
-          type="button"
-          onClick={handleEcho}
-          disabled={echoLoading || !echoText}
-        >
+        <button type="button" onClick={handleEcho} disabled={echoLoading || !echoText}>
           {echoLoading ? 'Sending…' : 'Echo'}
         </button>
 
-        {echoResult !== null && (
-          <p data-testid="echo-result">Result: {echoResult}</p>
-        )}
+        {echoResult !== null && <p data-testid="echo-result">Result: {echoResult}</p>}
         {echoError !== null && <IpcErrorBlock err={echoError} />}
       </div>
     </section>

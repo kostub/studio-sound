@@ -126,7 +126,7 @@ studio-sidecar health
 Success response:
 
 ```json
-{"status":"ok","version":"0.0.1"}
+{ "status": "ok", "version": "0.0.1" }
 ```
 
 Failure responses:

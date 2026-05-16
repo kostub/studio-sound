@@ -403,14 +403,14 @@ P0 and P1 are sequential and must land before anything else. After that, four pa
 
 ## Mapping back to the proposal's 12-week milestone plan
 
-| Proposal milestone weeks | Phases that deliver it |
-|---|---|
-| Weeks 1–2: corpus, harness, probe/extract/remux CLI | P0, P1, P2, P3, P4 |
-| Weeks 3–4: first enhancement engine + leveling | P7, P8 |
-| Weeks 5–6: Tauri shell, drag/drop, preview, export | P5, P6, P9, P10 |
-| Weeks 7–8: presets, artifact controls, quality meter, batch queue | P11, P12 |
-| Weeks 9–10: private beta with creators | (beta cycle on top of P12 build) |
-| Weeks 11–12: payments, signing/notarisation, launch | P13, P14 |
+| Proposal milestone weeks                                          | Phases that deliver it           |
+| ----------------------------------------------------------------- | -------------------------------- |
+| Weeks 1–2: corpus, harness, probe/extract/remux CLI               | P0, P1, P2, P3, P4               |
+| Weeks 3–4: first enhancement engine + leveling                    | P7, P8                           |
+| Weeks 5–6: Tauri shell, drag/drop, preview, export                | P5, P6, P9, P10                  |
+| Weeks 7–8: presets, artifact controls, quality meter, batch queue | P11, P12                         |
+| Weeks 9–10: private beta with creators                            | (beta cycle on top of P12 build) |
+| Weeks 11–12: payments, signing/notarisation, launch               | P13, P14                         |
 
 ## Parallelisation guide for staffing
 

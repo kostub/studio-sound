@@ -108,9 +108,9 @@ Decision Record at [docs/adr/2026-05-14-ipc-contract.md](docs/adr/2026-05-14-ipc
 
 Structured JSON logs are written to a rotating log file in a per-OS directory:
 
-| OS | Path |
-|----|------|
-| macOS | `~/Library/Logs/com.studiosound.app/` |
+| OS      | Path                                       |
+| ------- | ------------------------------------------ |
+| macOS   | `~/Library/Logs/com.studiosound.app/`      |
 | Windows | `%LOCALAPPDATA%\com.studiosound.app\Logs\` |
 
 Press `Cmd/Ctrl+Shift+D` (development builds only) to open the Diagnostics
@@ -120,6 +120,7 @@ and Ping / Echo controls for manual round-trip testing.
 ### Diagnostics screen
 
 The Diagnostics screen is available in development builds only. Activate it by:
+
 - pressing `Cmd+Shift+D` (macOS) or `Ctrl+Shift+D` (Windows/Linux), or
 - appending `?diag=1` to the URL in the WebView.
 

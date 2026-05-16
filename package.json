@@ -14,6 +14,7 @@
     "format": "prettier --write . && npm run sidecar:fmt",
     "test": "npm run test -w app && npm run sidecar:test",
     "gen:schemas": "node scripts/gen-schemas.mjs",
+    "verify:codegen": "node scripts/verify-codegen.mjs",
     "sidecar:build": "node scripts/build-sidecar.mjs",
     "sidecar:test": "cd sidecar && go test ./...",
     "sidecar:fmt": "cd sidecar && go fmt ./...",

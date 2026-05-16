@@ -29,10 +29,12 @@ mkdirSync(binariesDir, { recursive: true });
 
 for (const target of targets) {
   const outputPath = resolve(binariesDir, target.artifact);
+  const isWin = process.platform === 'win32';
   const result = spawnSync('go', ['build', '-trimpath', '-o', outputPath, './cmd/sidecar'], {
     cwd: sidecarDir,
+    shell: isWin,
     env: {
-      ...process.env,
+  ...process.env,
       CGO_ENABLED: '0',
       GOOS: target.goos,
       GOARCH: target.goarch,

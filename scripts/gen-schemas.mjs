@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -17,7 +17,8 @@ const schemaFiles = [
 ];
 
 function run(cmd, args, opts = {}) {
-  const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: rootDir, ...opts });
+  const isWin = process.platform === 'win32';
+  const r = spawnSync(cmd, args, { stdio: 'inherit', cwd: rootDir, shell: isWin, ...opts });
   if (r.status !== 0) {
     console.error(`gen-schemas: '${cmd} ${args.join(' ')}' failed (${r.status})`);
     process.exit(r.status ?? 1);
@@ -39,14 +40,16 @@ for (const file of schemaFiles) {
   const base = file.replace(/\.schema\.json$/, '').replace(/\./g, '_');
   const out = resolve(goOutDir, `${base}.go`);
   if (existsSync(out)) rmSync(out);
-  run(goJsonschema, [
-    '--package', 'generated',
-    '--output', out,
-    resolve(schemasDir, file),
-  ]);
+  run(goJsonschema, ['--package', 'generated', '--output', out, resolve(schemasDir, file)]);
 }
 
 const typify = process.env.TYPIFY_BIN ?? 'cargo-typify';
 run(typify, ['typify', resolve(schemasDir, 'envelope.schema.json'), '--output', rustOutFile]);
+
+// Normalize generated TS through prettier so the committed output matches what
+// `npm run format` would produce. Without this, the project's singleQuote/etc.
+// rules drift the checked-in files away from raw generator output and CI's
+// codegen-clean assertion fails.
+run('npx', ['--no-install', 'prettier', '--write', '--log-level', 'warn', `${tsOutDir}/**/*.ts`]);
 
 console.log('gen-schemas: wrote', tsOutDir, goOutDir, rustOutFile);

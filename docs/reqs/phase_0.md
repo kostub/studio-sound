@@ -1,4 +1,5 @@
 # Studio Sound App — Phase 0 Research & Requirements Document
+
 Version: 0.1  
 Status: Research / Bootstrap Planning  
 Target Platforms: macOS (Apple Silicon + Intel), Windows x64  
@@ -23,6 +24,7 @@ Phase 0 is intentionally limited to:
 No product/audio features are implemented in this phase.
 
 This document is intended to become the basis for:
+
 - Low-Level Design (LLD)
 - Implementation planning
 - CI/CD implementation
@@ -71,17 +73,17 @@ A fresh clone of the repository should allow a developer to:
 
 ## Architectural Decisions
 
-| Area | Decision | Reason |
-|---|---|---|
-| Desktop framework | Tauri 2 | Lightweight, secure, modern Rust backend |
-| Frontend | React + TypeScript + Vite | Fast DX, ecosystem maturity |
-| Native backend | Go sidecar | Easier concurrency/process mgmt |
-| Repository structure | Monorepo | Unified CI/tooling/versioning |
-| CI | GitHub Actions | Cross-platform matrix support |
-| Package manager | npm initially | Simplicity for bootstrap |
-| Formatting | Prettier + gofmt | Standardized code style |
-| Linting | ESLint + golangci-lint | Code quality enforcement |
-| Testing | Vitest + go test | Lightweight bootstrap tests |
+| Area                 | Decision                  | Reason                                   |
+| -------------------- | ------------------------- | ---------------------------------------- |
+| Desktop framework    | Tauri 2                   | Lightweight, secure, modern Rust backend |
+| Frontend             | React + TypeScript + Vite | Fast DX, ecosystem maturity              |
+| Native backend       | Go sidecar                | Easier concurrency/process mgmt          |
+| Repository structure | Monorepo                  | Unified CI/tooling/versioning            |
+| CI                   | GitHub Actions            | Cross-platform matrix support            |
+| Package manager      | npm initially             | Simplicity for bootstrap                 |
+| Formatting           | Prettier + gofmt          | Standardized code style                  |
+| Linting              | ESLint + golangci-lint    | Code quality enforcement                 |
+| Testing              | Vitest + go test          | Lightweight bootstrap tests              |
 
 ---
 
@@ -103,13 +105,13 @@ Tauri 2 provides:
 
 ## Important Tauri 2 Concepts
 
-| Concept | Relevance |
-|---|---|
-| `externalBin` | Required for Go sidecar bundling |
-| Sidecar processes | Launch/manage Go binary |
-| Commands | Rust bridge to frontend |
-| Capability system | Security sandboxing |
-| Dev server integration | Vite integration |
+| Concept                | Relevance                        |
+| ---------------------- | -------------------------------- |
+| `externalBin`          | Required for Go sidecar bundling |
+| Sidecar processes      | Launch/manage Go binary          |
+| Commands               | Rust bridge to frontend          |
+| Capability system      | Security sandboxing              |
+| Dev server integration | Vite integration                 |
 
 ## Required Tooling
 
@@ -136,12 +138,12 @@ Tauri 2 provides:
 
 ## Why This Stack
 
-| Tool | Reason |
-|---|---|
-| React | Ecosystem maturity |
-| TypeScript | Strict typing |
-| Vite | Extremely fast dev startup |
-| Vitest | Native Vite test runner |
+| Tool       | Reason                     |
+| ---------- | -------------------------- |
+| React      | Ecosystem maturity         |
+| TypeScript | Strict typing              |
+| Vite       | Extremely fast dev startup |
+| Vitest     | Native Vite test runner    |
 
 ## Required Standards
 
@@ -249,6 +251,7 @@ The monorepo must:
 A full Nx/Turborepo setup is NOT necessary in Phase 0.
 
 Recommendation:
+
 - Use simple npm workspaces initially
 - Re-evaluate at Phase 2 or 3
 
@@ -263,20 +266,18 @@ Tauri supports bundling external binaries via:
 ```json
 {
   "bundle": {
-    "externalBin": [
-      "../sidecar/bin/sidecar"
-    ]
+    "externalBin": ["../sidecar/bin/sidecar"]
   }
 }
 ```
 
 Expected generated binaries:
 
-| Platform | Binary |
-|---|---|
+| Platform    | Binary                |
+| ----------- | --------------------- |
 | Windows x64 | `sidecar-win-x64.exe` |
-| macOS ARM64 | `sidecar-mac-arm64` |
-| macOS x64 | `sidecar-mac-x64` |
+| macOS ARM64 | `sidecar-mac-arm64`   |
+| macOS x64   | `sidecar-mac-x64`     |
 
 ---
 
@@ -292,6 +293,7 @@ npm run build
 ```
 
 Must produce:
+
 - Optimized Vite assets
 - Successful Tauri build
 - No lint errors
@@ -303,11 +305,11 @@ Must produce:
 
 ## Required Targets
 
-| Target | GOOS | GOARCH |
-|---|---|---|
-| Windows x64 | windows | amd64 |
-| macOS Intel | darwin | amd64 |
-| macOS Apple Silicon | darwin | arm64 |
+| Target              | GOOS    | GOARCH |
+| ------------------- | ------- | ------ |
+| Windows x64         | windows | amd64  |
+| macOS Intel         | darwin  | amd64  |
+| macOS Apple Silicon | darwin  | arm64  |
 
 ## Expected Outputs
 
@@ -325,15 +327,15 @@ sidecar-mac-arm64
 
 ## Required Packages
 
-| Package | Purpose |
-|---|---|
-| eslint | JS/TS linting |
-| prettier | Formatting |
-| typescript | TS compiler |
-| vitest | Unit testing |
-| @tauri-apps/cli | Tauri tooling |
-| husky | Git hooks |
-| lint-staged | Pre-commit linting |
+| Package         | Purpose            |
+| --------------- | ------------------ |
+| eslint          | JS/TS linting      |
+| prettier        | Formatting         |
+| typescript      | TS compiler        |
+| vitest          | Unit testing       |
+| @tauri-apps/cli | Tauri tooling      |
+| husky           | Git hooks          |
+| lint-staged     | Pre-commit linting |
 
 ---
 
@@ -341,11 +343,11 @@ sidecar-mac-arm64
 
 ## Required Tools
 
-| Tool | Purpose |
-|---|---|
-| gofmt | Formatting |
+| Tool          | Purpose          |
+| ------------- | ---------------- |
+| gofmt         | Formatting       |
 | golangci-lint | Lint aggregation |
-| go test | Testing |
+| go test       | Testing          |
 
 ---
 
@@ -354,12 +356,13 @@ sidecar-mac-arm64
 # 10.1 Frontend Tests
 
 Framework:
+
 - Vitest
 
 Minimum Requirement:
 
 ```ts
-expect(true).toBe(true)
+expect(true).toBe(true);
 ```
 
 ---
@@ -380,10 +383,10 @@ func TestHealth(t *testing.T)
 
 ## Required Matrix
 
-| OS | Arch |
-|---|---|
-| windows-latest | x64 |
-| macos-latest | universal validation |
+| OS             | Arch                 |
+| -------------- | -------------------- |
+| windows-latest | x64                  |
+| macos-latest   | universal validation |
 
 ## Required CI Jobs
 
@@ -409,6 +412,7 @@ make bootstrap
 ```
 
 Expected outcome:
+
 - dependencies installed
 - sidecar built
 - frontend launched
@@ -435,6 +439,7 @@ Risk:
 Cross-platform sidecar naming mismatches.
 
 Mitigation:
+
 - Centralized naming convention
 - Explicit CI verification
 - Automated artifact validation
@@ -464,15 +469,15 @@ The following are NOT included in Phase 0:
 
 # 16. Recommended Initial Versions
 
-| Tool | Version Recommendation |
-|---|---|
-| Node.js | 22 LTS |
-| npm | bundled |
-| Go | 1.22+ |
-| Rust | stable |
-| Tauri | 2.x |
-| React | 18+ |
-| TypeScript | 5.x |
+| Tool       | Version Recommendation |
+| ---------- | ---------------------- |
+| Node.js    | 22 LTS                 |
+| npm        | bundled                |
+| Go         | 1.22+                  |
+| Rust       | stable                 |
+| Tauri      | 2.x                    |
+| React      | 18+                    |
+| TypeScript | 5.x                    |
 
 ---
 
@@ -539,6 +544,7 @@ Phase 0 is considered complete when:
 # 19. Recommended Next Step
 
 Create the Low-Level Design (LLD) covering:
+
 - package.json structure
 - Tauri configuration
 - CI YAML files
