@@ -2,7 +2,8 @@ name: CI
 
 on:
   pull_request:
-  push:
+    types: [opened]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -44,14 +45,37 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           golangci-lint --version
 
+      - name: Install go-jsonschema
+        run: |
+          go install github.com/atombender/go-jsonschema@v0.18.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-typify
+        run: cargo install cargo-typify --version 0.6.2 --locked
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate schemas
+        run: npm run gen:schemas
+
+      - name: Assert codegen is clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Codegen produced a dirty tree. Run 'npm run gen:schemas' locally and commit the result."
+            git status --porcelain
+            git --no-pager diff
+            exit 1
+          fi
 
       - name: Lint
         run: npm run lint
 
       - name: Test
         run: npm run test
+
+      - name: Integration tests (sidecar E2E)
+        run: cd sidecar && go test -tags=integration ./...
 
       - name: Build sidecar
         run: npm run sidecar:build
