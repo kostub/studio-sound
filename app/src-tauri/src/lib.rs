@@ -25,6 +25,7 @@ pub fn run() {
             commands::ipc_ping,
             commands::ipc_echo,
             commands::ipc_shutdown,
+            commands::open_logs_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Studio Sound App");
