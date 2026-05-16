@@ -8,7 +8,7 @@
 export interface Envelope {
   v: 1;
   id: string;
-  kind: "request" | "response" | "event";
+  kind: 'request' | 'response' | 'event';
   method?: string;
   payload?: {
     [k: string]: unknown;

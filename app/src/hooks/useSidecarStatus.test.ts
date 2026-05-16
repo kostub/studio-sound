@@ -54,9 +54,7 @@ describe('useSidecarStatus', () => {
       expect(result.current.status).toBe('error');
     });
 
-    expect(result.current.error).toBe(
-      'SIDECAR_UNAVAILABLE: sidecar is not running',
-    );
+    expect(result.current.error).toBe('SIDECAR_UNAVAILABLE: sidecar is not running');
   });
 
   it('starts in "disconnected" state before the first ping resolves', () => {

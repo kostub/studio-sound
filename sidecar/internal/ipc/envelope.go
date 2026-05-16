@@ -28,18 +28,39 @@ type Envelope struct {
 	Error   *RPCError       `json:"error,omitempty"`
 }
 
+// DecodeLine parses one NDJSON envelope from `line`. On error, the returned
+// Envelope is *not* empty: we best-effort extract the `id` field so the caller
+// can still echo it back in the error response. This is how the Rust client
+// correlates malformed-envelope errors to their pending request — if `id` is
+// missing the request will only complete via timeout.
 func DecodeLine(line []byte) (Envelope, error) {
 	if len(line) > maxMessageSize {
-		return Envelope{}, ErrMessageTooLarge
+		return bestEffortEnvelope(line), ErrMessageTooLarge
 	}
 	var env Envelope
 	if err := json.Unmarshal(line, &env); err != nil {
-		return Envelope{}, fmt.Errorf("%w: %v", ErrMalformedEnvelope, err)
+		return bestEffortEnvelope(line), fmt.Errorf("%w: %v", ErrMalformedEnvelope, err)
 	}
 	if env.V != ProtocolVersion {
-		return Envelope{}, fmt.Errorf("%w: got v=%d, want v=%d", ErrMalformedEnvelope, env.V, ProtocolVersion)
+		return env, fmt.Errorf("%w: got v=%d, want v=%d", ErrProtocolVersionMismatch, env.V, ProtocolVersion)
 	}
 	return env, nil
+}
+
+// bestEffortEnvelope tries to extract just the `id` field from a malformed
+// or oversized line so that the error response can be correlated back to the
+// caller's pending request. Any parse failure here is silently ignored — the
+// resulting envelope simply carries `id=""`, which matches the prior behaviour.
+func bestEffortEnvelope(line []byte) Envelope {
+	if len(line) > maxMessageSize {
+		// Don't try to parse 8+ MiB of garbage just to fish out an id.
+		return Envelope{}
+	}
+	var partial struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(line, &partial)
+	return Envelope{ID: partial.ID}
 }
 
 func EncodeResponse(id string, result any) ([]byte, error) {

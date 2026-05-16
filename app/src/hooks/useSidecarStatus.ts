@@ -43,9 +43,7 @@ const POLL_INTERVAL_MS = 5_000;
  *
  * @param intervalMs  Polling interval in milliseconds (default: 5 000).
  */
-export function useSidecarStatus(
-  intervalMs: number = POLL_INTERVAL_MS,
-): SidecarStatusState {
+export function useSidecarStatus(intervalMs: number = POLL_INTERVAL_MS): SidecarStatusState {
   const [state, setState] = useState<SidecarStatusState>({
     status: 'disconnected',
   });

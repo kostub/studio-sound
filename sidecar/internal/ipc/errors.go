@@ -16,8 +16,9 @@ const (
 )
 
 var (
-	ErrMessageTooLarge   = errors.New("message too large")
-	ErrMalformedEnvelope = errors.New("malformed envelope")
+	ErrMessageTooLarge         = errors.New("message too large")
+	ErrMalformedEnvelope       = errors.New("malformed envelope")
+	ErrProtocolVersionMismatch = errors.New("protocol version mismatch")
 )
 
 type RPCError struct {

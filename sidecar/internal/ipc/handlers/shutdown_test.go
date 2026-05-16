@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/studio-sound/studio/sidecar/internal/ipc"
 )
@@ -44,7 +45,7 @@ func TestShutdownHandler_HappyPath(t *testing.T) {
 	select {
 	case <-cancelCh:
 		// cancelFn was called — expected
-	case <-context.Background().Done():
+	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for cancelFn to be called")
 	}
 	_ = called // suppress unused variable warning

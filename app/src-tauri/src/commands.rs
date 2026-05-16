@@ -91,7 +91,8 @@ pub async fn open_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("failed to resolve log directory: {e}"))?;
 
     // Create the directory if it doesn't exist so the file manager can open it.
-    std::fs::create_dir_all(&log_dir)
+    tokio::fs::create_dir_all(&log_dir)
+        .await
         .map_err(|e| format!("failed to create log directory: {e}"))?;
 
     let path_str = log_dir
@@ -100,7 +101,7 @@ pub async fn open_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
+        tokio::process::Command::new("open")
             .arg(path_str)
             .spawn()
             .map_err(|e| format!("failed to open log directory: {e}"))?;
@@ -108,7 +109,7 @@ pub async fn open_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
+        tokio::process::Command::new("explorer")
             .arg(path_str)
             .spawn()
             .map_err(|e| format!("failed to open log directory: {e}"))?;
@@ -116,7 +117,7 @@ pub async fn open_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open")
+        tokio::process::Command::new("xdg-open")
             .arg(path_str)
             .spawn()
             .map_err(|e| format!("failed to open log directory: {e}"))?;

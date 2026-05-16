@@ -6,19 +6,25 @@
 //! - receive decoded response envelopes from its stdout via [`Supervisor::subscribe`]
 //! - request a graceful shutdown via [`Supervisor::shutdown`]
 //!
-//! ## Integration tests
+//! ## Auto-restart on crash
 //!
-//! Full integration tests that exercise a real sidecar binary are deferred to
-//! item 7.1 because they require the sidecar to be compiled and registered as
-//! a Tauri external binary, which depends on infrastructure that lands in later
-//! items.  The unit tests in this module exercise the serialisation path only.
+//! The supervisor monitors the child process via its `CommandEvent` stream.
+//! When the child exits *without* a prior call to [`Supervisor::shutdown`],
+//! the supervisor respawns it (with capped exponential backoff). Pending
+//! requests on the previous child are not replayed — they will time out on
+//! the [`IpcClient`] layer above us. This matches the testability bar in the
+//! Phase 1 plan ("Killing the sidecar process externally causes the UI to
+//! surface a clean error and the app to respawn it on the next call").
 
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 
 use crate::ipc::envelope::{decode_line, Envelope, Kind};
 use crate::ipc::error::IpcError;
@@ -29,23 +35,55 @@ use crate::ipc::envelope::PROTOCOL_VERSION;
 /// Capacity of the broadcast channel that fans out decoded response envelopes.
 const CHANNEL_CAPACITY: usize = 256;
 
+/// Maximum number of consecutive respawn attempts before the supervisor
+/// gives up and transitions to a permanent unavailable state.
+const MAX_RESTART_ATTEMPTS: u32 = 8;
+
+/// Initial backoff between respawn attempts; doubles each attempt up to
+/// `MAX_BACKOFF`.
+const INITIAL_BACKOFF: Duration = Duration::from_millis(200);
+const MAX_BACKOFF: Duration = Duration::from_secs(30);
+
+/// Information needed to spawn (or respawn) the sidecar.
+struct SpawnContext {
+    app: AppHandle,
+    log_path: PathBuf,
+}
+
 /// Shared inner state owned by a [`Supervisor`].
 struct Inner {
     /// Sender half of the broadcast channel.  Kept alive as long as the
     /// supervisor exists so new subscribers can be created at any time.
     tx: broadcast::Sender<Envelope>,
 
-    /// The child process handle, used for stdin writes via `child.write()`.
-    /// Wrapped in a mutex so that multiple concurrent senders can call
-    /// [`Supervisor::send`] safely.
+    /// The currently-live child handle, wrapped in `Arc<std::sync::Mutex<_>>`
+    /// so that:
+    ///   1. `Supervisor::send` can clone the inner `Arc` and hand it to a
+    ///      `spawn_blocking` closure for the (potentially-blocking) stdin
+    ///      write *without* moving the only handle into that closure — so a
+    ///      `JoinError` cannot orphan the child handle.
+    ///   2. The outer `std::sync::Mutex<Option<_>>` lets the read loop swap
+    ///      in a freshly-spawned child after a crash, without invalidating
+    ///      already-cloned Arcs (which will just write to a dead pipe and
+    ///      surface the error to the caller).
     ///
-    /// `None` after the sidecar has been shut down.
-    child: Mutex<Option<CommandChild>>,
+    /// `None` after [`Supervisor::shutdown`] or after the restart budget is
+    /// exhausted.
+    state: std::sync::Mutex<Option<Arc<std::sync::Mutex<CommandChild>>>>,
+
+    /// Set to `true` by [`Supervisor::shutdown`] so the read loop knows the
+    /// child exit was intentional and skips the respawn path.
+    shutdown_requested: AtomicBool,
+
+    /// Captured spawn parameters so the read loop can respawn the child
+    /// without re-querying `app.path()` etc.
+    spawn_ctx: SpawnContext,
 }
 
 /// Manages a single sidecar child process.
 ///
-/// Clone-cheap: the clone still shares the same inner channel and child handle.
+/// Clone-cheap: the clone still shares the same inner channel, child handle,
+/// and shutdown flag.
 #[derive(Clone)]
 pub struct Supervisor {
     inner: Arc<Inner>,
@@ -56,90 +94,47 @@ impl Supervisor {
     /// `tauri.conf.json` → `bundle.externalBin`) in `serve` mode, wires up
     /// stdout → broadcast channel decoding, and returns a ready [`Supervisor`].
     ///
-    /// Returns [`IpcError::Other`] if the sidecar binary cannot be resolved or
-    /// spawned.
+    /// Sets `STUDIO_LOG_FILE=<app_log_dir>/sidecar.log` in the child's
+    /// environment so the sidecar's structured logs land in the documented
+    /// log directory.
+    ///
+    /// Returns [`IpcError::Other`] if the log directory cannot be resolved,
+    /// or if the sidecar binary cannot be found or spawned for the very first
+    /// time. Later respawn failures are logged and retried in the background.
     pub fn spawn(app: &AppHandle) -> Result<Self, IpcError> {
-        let cmd = app
-            .shell()
-            .sidecar("studio-sidecar")
-            .map_err(|e| IpcError::Other {
-                code: "SIDECAR_UNAVAILABLE".into(),
-                message: format!("sidecar binary not found: {e}"),
-                details: None,
-            })?
-            .args(["serve"]);
-
-        let (mut event_rx, child) = cmd.spawn().map_err(|e| IpcError::Other {
+        // Resolve and create the log directory so the sidecar can open its
+        // log file on first write.
+        let log_dir = app.path().app_log_dir().map_err(|e| IpcError::Other {
             code: "SIDECAR_UNAVAILABLE".into(),
-            message: format!("failed to spawn sidecar: {e}"),
+            message: format!("failed to resolve app log directory: {e}"),
             details: None,
         })?;
+        std::fs::create_dir_all(&log_dir).map_err(|e| IpcError::Other {
+            code: "SIDECAR_UNAVAILABLE".into(),
+            message: format!("failed to create log directory {}: {e}", log_dir.display()),
+            details: None,
+        })?;
+        let log_path = log_dir.join("sidecar.log");
 
         let (tx, _) = broadcast::channel(CHANNEL_CAPACITY);
-        let tx_clone = tx.clone();
-
-        // Spawn a Tokio task that reads CommandEvent::Stdout lines from the
-        // sidecar, decodes each one with `decode_line`, and broadcasts valid
-        // response envelopes.  Stderr lines and exit events are traced but not
-        // forwarded.
-        tokio::spawn(async move {
-            while let Some(event) = event_rx.recv().await {
-                match event {
-                    CommandEvent::Stdout(line) => {
-                        // The plugin delivers each stdout *line* as a Vec<u8>
-                        // without the trailing newline.
-                        let line_str = match std::str::from_utf8(&line) {
-                            Ok(s) => s,
-                            Err(_) => {
-                                tracing::warn!("sidecar stdout: non-UTF-8 line, skipping");
-                                continue;
-                            }
-                        };
-                        match decode_line(line_str) {
-                            Ok(env) => {
-                                // Only forward response and event envelopes;
-                                // request envelopes from the sidecar are
-                                // unexpected in Phase 1 and are silently
-                                // discarded.
-                                if env.kind == Kind::Response || env.kind == Kind::Event {
-                                    // A send error means no subscribers right
-                                    // now — this is not a fatal condition.
-                                    let _ = tx_clone.send(env);
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!("sidecar stdout: decode error: {e}");
-                            }
-                        }
-                    }
-                    CommandEvent::Stderr(line) => {
-                        let s = String::from_utf8_lossy(&line);
-                        tracing::debug!(target: "sidecar::stderr", "{s}");
-                    }
-                    CommandEvent::Error(e) => {
-                        tracing::error!("sidecar process error: {e}");
-                    }
-                    CommandEvent::Terminated(status) => {
-                        tracing::info!(
-                            code = status.code,
-                            signal = status.signal,
-                            "sidecar terminated"
-                        );
-                        // Stop the reader loop when the child exits.
-                        break;
-                    }
-                    // tauri-plugin-shell may add new variants in future; ignore them.
-                    _ => {}
-                }
-            }
+        let inner = Arc::new(Inner {
+            tx,
+            state: std::sync::Mutex::new(None),
+            shutdown_requested: AtomicBool::new(false),
+            spawn_ctx: SpawnContext {
+                app: app.clone(),
+                log_path,
+            },
         });
 
-        Ok(Self {
-            inner: Arc::new(Inner {
-                tx,
-                child: Mutex::new(Some(child)),
-            }),
-        })
+        // First spawn is synchronous so we can fail fast at startup if the
+        // sidecar binary is missing.
+        let (event_rx, child) = spawn_child(&inner.spawn_ctx)?;
+        install_child(&inner, child);
+
+        tokio::spawn(read_loop(Arc::clone(&inner), event_rx));
+
+        Ok(Self { inner })
     }
 
     /// Serialises `env` as a single NDJSON line and writes it to the sidecar's
@@ -154,16 +149,41 @@ impl Supervisor {
             buf
         };
 
-        let mut guard = self.inner.child.lock().await;
-        match guard.as_mut() {
-            None => Err(IpcError::SidecarUnavailable),
-            Some(child) => {
-                child.write(line.as_bytes()).map_err(|e| IpcError::Other {
-                    code: "SIDECAR_UNAVAILABLE".into(),
-                    message: format!("stdin write failed: {e}"),
-                    details: None,
-                })
+        let child_arc = {
+            let guard = self.inner.state.lock().unwrap_or_else(|p| p.into_inner());
+            match guard.as_ref() {
+                Some(c) => Arc::clone(c),
+                None => return Err(IpcError::SidecarUnavailable),
             }
+        };
+
+        // `child.write` performs a synchronous stdin write that can block if
+        // the OS pipe buffer is full and the sidecar is slow to drain. We hold
+        // an `Arc` over the child instead of moving the only handle into the
+        // closure, so even a `JoinError` (panic in the writer task) cannot
+        // orphan the child — the supervisor's own Arc clone in `state` keeps
+        // the handle alive.
+        let bytes = line.into_bytes();
+        let write_res = tokio::task::spawn_blocking(move || {
+            let mut child = child_arc
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            child.write(&bytes)
+        })
+        .await;
+
+        match write_res {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(IpcError::Other {
+                code: "SIDECAR_UNAVAILABLE".into(),
+                message: format!("stdin write failed: {e}"),
+                details: None,
+            }),
+            Err(e) => Err(IpcError::Other {
+                code: "INTERNAL_ERROR".into(),
+                message: format!("blocking task failed: {e}"),
+                details: None,
+            }),
         }
     }
 
@@ -176,17 +196,165 @@ impl Supervisor {
         self.inner.tx.subscribe()
     }
 
-    /// Closes the sidecar's stdin to signal EOF, which causes the `serve` loop
-    /// to exit gracefully (the sidecar exits 0 on stdin EOF per the Go spec).
+    /// Marks the supervisor as shut down: the next child-exit event will be
+    /// treated as graceful, the auto-restart logic will not fire, and the
+    /// child handle is dropped (which closes stdin and signals EOF to the
+    /// sidecar's read loop).
     ///
-    /// After this call, [`send`] will return [`IpcError::SidecarUnavailable`].
+    /// After this call, [`send`] returns [`IpcError::SidecarUnavailable`].
     ///
     /// [`send`]: Supervisor::send
     pub async fn shutdown(&self) {
-        // Dropping the child handle closes the write end of the pipe, sending
-        // EOF to the sidecar's stdin reader.
-        let mut guard = self.inner.child.lock().await;
+        self.inner.shutdown_requested.store(true, Ordering::SeqCst);
+        let mut guard = self
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         *guard = None;
+    }
+}
+
+/// Build and spawn the sidecar command. Returns the event stream and child
+/// handle on success.
+fn spawn_child(
+    ctx: &SpawnContext,
+) -> Result<(tauri::async_runtime::Receiver<CommandEvent>, CommandChild), IpcError> {
+    let cmd = ctx
+        .app
+        .shell()
+        .sidecar("studio-sidecar")
+        .map_err(|e| IpcError::Other {
+            code: "SIDECAR_UNAVAILABLE".into(),
+            message: format!("sidecar binary not found: {e}"),
+            details: None,
+        })?
+        .args(["serve"])
+        .env("STUDIO_LOG_FILE", ctx.log_path.to_string_lossy().to_string());
+
+    cmd.spawn().map_err(|e| IpcError::Other {
+        code: "SIDECAR_UNAVAILABLE".into(),
+        message: format!("failed to spawn sidecar: {e}"),
+        details: None,
+    })
+}
+
+/// Replace the supervisor's child slot with a freshly-spawned handle.
+fn install_child(inner: &Arc<Inner>, child: CommandChild) {
+    let mut guard = inner.state.lock().unwrap_or_else(|p| p.into_inner());
+    *guard = Some(Arc::new(std::sync::Mutex::new(child)));
+}
+
+/// Read the sidecar's stdout/stderr event stream, decode response envelopes,
+/// and broadcast them. On unexpected termination, respawn the child with
+/// capped exponential backoff.
+async fn read_loop(
+    inner: Arc<Inner>,
+    mut event_rx: tauri::async_runtime::Receiver<CommandEvent>,
+) {
+    let mut attempt: u32 = 0;
+    loop {
+        let mut clean_exit = false;
+        while let Some(event) = event_rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) => {
+                    let line_str = match std::str::from_utf8(&line) {
+                        Ok(s) => s,
+                        Err(_) => {
+                            tracing::warn!("sidecar stdout: non-UTF-8 line, skipping");
+                            continue;
+                        }
+                    };
+                    match decode_line(line_str) {
+                        Ok(env) => {
+                            if env.kind == Kind::Response || env.kind == Kind::Event {
+                                let _ = inner.tx.send(env);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("sidecar stdout: decode error: {e}");
+                        }
+                    }
+                }
+                CommandEvent::Stderr(line) => {
+                    let s = String::from_utf8_lossy(&line);
+                    tracing::debug!(target: "sidecar::stderr", "{s}");
+                }
+                CommandEvent::Error(e) => {
+                    tracing::error!("sidecar process error: {e}");
+                }
+                CommandEvent::Terminated(status) => {
+                    tracing::info!(
+                        code = status.code,
+                        signal = status.signal,
+                        "sidecar terminated"
+                    );
+                    clean_exit = matches!(status.code, Some(0));
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        // Either the event channel closed or we received Terminated. Decide
+        // whether to respawn.
+        if inner.shutdown_requested.load(Ordering::SeqCst) {
+            tracing::info!("sidecar reader: graceful shutdown, exiting read loop");
+            return;
+        }
+
+        if clean_exit {
+            // A clean exit (code 0) without a shutdown request is still
+            // unexpected, but treat it as recoverable by resetting the
+            // attempt counter.
+            attempt = 0;
+        }
+
+        // Retry-with-backoff loop: keep trying to spawn until success or
+        // until the attempt budget is exhausted.
+        loop {
+            attempt = attempt.saturating_add(1);
+            if attempt > MAX_RESTART_ATTEMPTS {
+                tracing::error!(
+                    attempts = attempt - 1,
+                    "sidecar restart budget exhausted; supervisor entering permanent unavailable state"
+                );
+                let mut guard = inner.state.lock().unwrap_or_else(|p| p.into_inner());
+                *guard = None;
+                return;
+            }
+
+            let backoff = INITIAL_BACKOFF
+                .saturating_mul(1u32 << attempt.min(8))
+                .min(MAX_BACKOFF);
+            tracing::warn!(
+                attempt,
+                backoff_ms = backoff.as_millis() as u64,
+                "respawning sidecar after backoff"
+            );
+            tokio::time::sleep(backoff).await;
+
+            // Recheck shutdown — the user may have asked us to stop while we
+            // were sleeping.
+            if inner.shutdown_requested.load(Ordering::SeqCst) {
+                tracing::info!("sidecar reader: shutdown requested during backoff");
+                return;
+            }
+
+            match spawn_child(&inner.spawn_ctx) {
+                Ok((new_rx, new_child)) => {
+                    install_child(&inner, new_child);
+                    event_rx = new_rx;
+                    attempt = 0;
+                    tracing::info!("sidecar respawned");
+                    break;
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "failed to respawn sidecar; will retry");
+                    // Continue the retry-with-backoff loop.
+                }
+            }
+        }
     }
 }
 

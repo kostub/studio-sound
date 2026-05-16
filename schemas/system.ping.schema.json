@@ -14,7 +14,8 @@
         "sidecarVersion": { "type": "string", "minLength": 1 },
         "uptimeMs": { "type": "integer", "minimum": 0 },
         "supportedProtocolVersions": {
-          "type": "array", "minItems": 1,
+          "type": "array",
+          "minItems": 1,
           "items": { "type": "integer", "minimum": 1 }
         }
       }

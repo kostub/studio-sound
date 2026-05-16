@@ -37,8 +37,8 @@ func TestDecodeLine_MalformedJSON(t *testing.T) {
 func TestDecodeLine_WrongVersion(t *testing.T) {
 	line := []byte(`{"v":2,"id":"x","kind":"request","method":"foo"}`)
 	_, err := DecodeLine(line)
-	if !errors.Is(err, ErrMalformedEnvelope) {
-		t.Fatalf("expected ErrMalformedEnvelope for wrong version, got %v", err)
+	if !errors.Is(err, ErrProtocolVersionMismatch) {
+		t.Fatalf("expected ErrProtocolVersionMismatch for wrong version, got %v", err)
 	}
 }
 

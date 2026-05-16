@@ -24,7 +24,7 @@ func TestServeExitsOnStdinClose(t *testing.T) {
 	}()
 
 	// Close the write end — the serve loop sees EOF and should return.
-	pw.Close()
+	_ = pw.Close()
 
 	select {
 	case code := <-done:
@@ -75,7 +75,7 @@ func TestServeProcessesOnePing(t *testing.T) {
 	select {
 	case line = <-responseLine:
 	case <-time.After(2 * time.Second):
-		pw.Close()
+		_ = pw.Close()
 		t.Fatal("timed out waiting for a response from serve")
 	}
 
@@ -120,7 +120,7 @@ func TestServeProcessesOnePing(t *testing.T) {
 	}
 
 	// Close stdin to stop the server.
-	pw.Close()
+	_ = pw.Close()
 
 	select {
 	case <-done:

@@ -6,28 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 )
-
-// readFirstLine reads the first newline-terminated response from r.
-func readFirstLine(t *testing.T, r io.Reader) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	b := make([]byte, 1)
-	for {
-		n, err := r.Read(b)
-		if n > 0 {
-			buf.WriteByte(b[0])
-			if b[0] == '\n' {
-				return bytes.TrimRight(buf.Bytes(), "\n")
-			}
-		}
-		if err != nil {
-			t.Fatalf("read error: %v", err)
-		}
-	}
-}
 
 func runDispatch(t *testing.T, d *Dispatcher, input string) Envelope {
 	t.Helper()
@@ -43,8 +25,8 @@ func runDispatch(t *testing.T, d *Dispatcher, input string) Envelope {
 	}()
 
 	// Write the request line then close the pipe to signal EOF.
-	fmt.Fprintf(pw, "%s\n", input)
-	pw.Close()
+	_, _ = fmt.Fprintf(pw, "%s\n", input)
+	_ = pw.Close()
 
 	<-done
 
@@ -149,8 +131,8 @@ func TestDispatcher_OversizedLine(t *testing.T) {
 	// Write in a goroutine to avoid deadlocking the test — writing 9 MiB may
 	// block until the dispatcher has drained enough of the pipe.
 	go func() {
-		fmt.Fprintf(pw, "%s\n", big)
-		pw.Close()
+		_, _ = fmt.Fprintf(pw, "%s\n", big)
+		_ = pw.Close()
 	}()
 
 	<-done
@@ -174,4 +156,32 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// A handler that returns a value json.Marshal cannot encode (a channel)
+// must not leave the caller hanging on a silent empty response. Instead the
+// dispatcher must surface an INTERNAL_ERROR envelope and log the failure.
+func TestDispatcher_UnmarshalableResult(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+	d := NewDispatcher(logger)
+	d.Register("bad.result", func(ctx context.Context, id string, payload json.RawMessage) (any, error) {
+		return make(chan int), nil
+	})
+
+	req := `{"v":1,"id":"bad-1","kind":"request","method":"bad.result","payload":null}`
+	env := runDispatch(t, d, req)
+
+	if env.Error == nil {
+		t.Fatal("expected error field to be present")
+	}
+	if env.Error.Code != CodeInternalError {
+		t.Errorf("got error.code=%q, want %q", env.Error.Code, CodeInternalError)
+	}
+	if env.ID != "bad-1" {
+		t.Errorf("got id=%q, want bad-1", env.ID)
+	}
+	if !strings.Contains(logBuf.String(), "failed to encode") {
+		t.Errorf("expected an encode-failure log line, got: %s", logBuf.String())
+	}
 }
