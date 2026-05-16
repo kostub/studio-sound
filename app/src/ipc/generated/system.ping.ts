@@ -5,6 +5,25 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+/**
+ * This interface was referenced by `SystemPing`'s JSON-Schema
+ * via the `definition` "PingPayload".
+ */
+export type PingPayload = null;
+
 export interface SystemPing {
   [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `SystemPing`'s JSON-Schema
+ * via the `definition` "PingResult".
+ */
+export interface PingResult {
+  pong: true;
+  sidecarVersion: string;
+  uptimeMs: number;
+  /**
+   * @minItems 1
+   */
+  supportedProtocolVersions: [number, ...number[]];
 }

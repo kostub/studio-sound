@@ -5,6 +5,19 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+/**
+ * This interface was referenced by `SystemShutdown`'s JSON-Schema
+ * via the `definition` "ShutdownPayload".
+ */
+export type ShutdownPayload = null;
+
 export interface SystemShutdown {
   [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `SystemShutdown`'s JSON-Schema
+ * via the `definition` "ShutdownResult".
+ */
+export interface ShutdownResult {
+  accepted: true;
 }
