@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "Default capability for the main Studio Sound App window.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    "shell:allow-spawn"
+  ]
 }
