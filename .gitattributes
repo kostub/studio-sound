@@ -1,0 +1,6 @@
+# Enforce LF line endings for all files
+* text=auto eol=lf
+
+# Explicitly handle generated files to ensure they never use CRLF in CI
+**/generated/** text eol=lf
+**/generated.rs text eol=lf
