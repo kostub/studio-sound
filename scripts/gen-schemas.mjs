@@ -40,7 +40,8 @@ for (const file of schemaFiles) {
   const base = file.replace(/\.schema\.json$/, '').replace(/\./g, '_');
   const out = resolve(goOutDir, `${base}.go`);
   if (existsSync(out)) rmSync(out);
-  run(goJsonschema, ['--package', 'generated', '--output', out, resolve(schemasDir, file)]);
+  // Use relative path for input to avoid absolute path issues with $ref on Windows
+  run(goJsonschema, ['--package', 'generated', '--output', out, `schemas/${file}`]);
 }
 
 const typify = process.env.TYPIFY_BIN ?? 'cargo-typify';
