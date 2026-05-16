@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://studiosound.app/schemas/system.echo.schema.json",
+  "title": "SystemEcho",
+  "type": "object",
+  "$defs": {
+    "EchoPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": { "text": { "type": "string", "maxLength": 4096 } }
+    },
+    "EchoResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": { "text": { "type": "string", "maxLength": 4096 } }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://studiosound.app/schemas/envelope.schema.json",
+  "title": "Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "id", "kind"],
+  "properties": {
+    "v": { "type": "integer", "const": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "kind": { "type": "string", "enum": ["request", "response", "event"] },
+    "method": { "type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$" },
+    "payload": { "type": ["object", "null"] },
+    "result": { "type": ["object", "null"] },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "type": "string", "maxLength": 500 },
+        "details": { "type": ["object", "null"] }
+      }
+    }
+  }
+}
