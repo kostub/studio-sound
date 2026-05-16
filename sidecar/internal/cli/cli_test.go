@@ -17,7 +17,7 @@ func TestRunHealth(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Run([]string{"health"}, &stdout, &stderr)
+	code := Run([]string{"health"}, &bytes.Buffer{}, &stdout, &stderr)
 
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
@@ -37,7 +37,7 @@ func TestRunUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Run([]string{"nope"}, &stdout, &stderr)
+	code := Run([]string{"nope"}, &bytes.Buffer{}, &stdout, &stderr)
 
 	if code != 2 {
 		t.Fatalf("expected exit code 2, got %d", code)
@@ -56,7 +56,7 @@ func TestRunMissingCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Run(nil, &stdout, &stderr)
+	code := Run(nil, &bytes.Buffer{}, &stdout, &stderr)
 
 	if code != 2 {
 		t.Fatalf("expected exit code 2, got %d", code)
@@ -74,7 +74,7 @@ func TestRunMissingCommand(t *testing.T) {
 func TestRunHealthWriteFailure(t *testing.T) {
 	var stderr bytes.Buffer
 
-	code := Run([]string{"health"}, failingWriter{}, &stderr)
+	code := Run([]string{"health"}, &bytes.Buffer{}, failingWriter{}, &stderr)
 
 	if code != 1 {
 		t.Fatalf("expected exit code 1, got %d", code)
