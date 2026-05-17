@@ -10,6 +10,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import type { ProbeResult } from './generated/media.probe';
+
 // ---------------------------------------------------------------------------
 // Result types (mirror the JSON Schemas for system.ping / system.echo / system.shutdown)
 // ---------------------------------------------------------------------------
@@ -83,6 +85,15 @@ export async function shutdown(): Promise<ShutdownResult> {
     return await invoke<ShutdownResult>('ipc_shutdown');
   } catch (err) {
     throw toIpcError(err);
+  }
+}
+
+/** Probes a media file and returns the canonical MediaProbeResult. */
+export async function probe(path: string): Promise<ProbeResult> {
+  try {
+    return (await invoke('media_probe', { path })) as ProbeResult;
+  } catch (e) {
+    throw toIpcError(e);
   }
 }
 

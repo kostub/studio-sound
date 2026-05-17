@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { toIpcError } from './client';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock @tauri-apps/api/core before any module that calls invoke is imported.
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}));
+
+import { invoke } from '@tauri-apps/api/core';
+import { toIpcError, probe } from './client';
+
+const mockInvoke = vi.mocked(invoke);
 
 describe('toIpcError', () => {
   it('returns structured error as-is when shape matches', () => {
@@ -32,5 +41,26 @@ describe('toIpcError', () => {
     const e = toIpcError({ code: 'FILE_NOT_FOUND' });
     expect(e.code).toBe('UNKNOWN');
     expect(e.message).toBe('[object Object]');
+  });
+});
+
+describe('probe', () => {
+  it('invokes media_probe with the given path', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      id: 'A', path: '/x', filename: 'x', sizeBytes: 1,
+      container: { format: 'mov,mp4', longName: '' },
+      audio: null,
+      compatibility: { supported: false, issues: ['no audio'], warnings: [] },
+    });
+    const r = await probe('/x');
+    expect(invoke).toHaveBeenCalledWith('media_probe', { path: '/x' });
+    expect(r.compatibility.supported).toBe(false);
+  });
+
+  it('throws IpcError on structured rejection', async () => {
+    mockInvoke.mockRejectedValueOnce({
+      code: 'FILE_NOT_FOUND', message: 'missing',
+    });
+    await expect(probe('/x')).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
   });
 });
