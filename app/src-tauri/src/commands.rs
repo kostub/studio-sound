@@ -16,6 +16,7 @@ use std::time::Duration;
 use tauri::State;
 
 use crate::ipc::client::IpcClient;
+use crate::ipc::error::SerializableIpcError;
 
 /// Per-method timeout table.  All Phase 1 methods use modest timeouts; the
 /// fallback catches any future `ipc_call` with an unknown method.
@@ -37,11 +38,11 @@ fn default_timeout(method: &str) -> Duration {
 #[tauri::command]
 pub async fn ipc_ping(
     client: State<'_, Arc<IpcClient>>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, SerializableIpcError> {
     client
         .call("system.ping", serde_json::Value::Null, default_timeout("system.ping"))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(SerializableIpcError::from)
 }
 
 /// Sends a `system.echo` request with the given `text` to the sidecar.
