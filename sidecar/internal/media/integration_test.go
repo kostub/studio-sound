@@ -122,3 +122,28 @@ func TestIntegration_FileNotFound(t *testing.T) {
 		t.Fatal("expected error for missing file, got nil")
 	}
 }
+
+// TestIntegration_KillMidProbeLeavesNoOrphan cancels the context ~50ms after
+// starting a probe so that ffprobe is killed mid-run, then immediately re-probes
+// the same file and asserts the second probe succeeds — confirming no file-
+// descriptor leak or lingering subprocess blocks subsequent access.
+func TestIntegration_KillMidProbeLeavesNoOrphan(t *testing.T) {
+	fp := ffprobePathForTest(t)
+	asset := assetPath(t, "tiny-h264-aac-stereo.mp4")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel quickly so ffprobe is killed mid-run.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	_, _ = Probe(ctx, fp, asset)
+
+	// Re-probe immediately; no lingering FD or orphan process should block this.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel2()
+	_, err := Probe(ctx2, fp, asset)
+	if err != nil {
+		t.Fatalf("second probe failed after kill: %v", err)
+	}
+}
