@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
+import type { ProbeResult } from '../ipc/generated/media.probe';
 
 // Handlers registered by useDropTarget stub
 const handlers: Array<(e: any) => void> = [];
@@ -25,7 +26,7 @@ import { WorkspaceShell } from './WorkspaceShell';
 
 const mockProbe = vi.mocked(probe);
 
-const validResult = {
+const validResult: ProbeResult = {
   id: 'A',
   path: '/tmp/tiny-h264-aac-stereo.mp4',
   filename: 'tiny-h264-aac-stereo.mp4',
