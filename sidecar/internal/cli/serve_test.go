@@ -128,3 +128,81 @@ func TestServeProcessesOnePing(t *testing.T) {
 		t.Error("serve did not exit within 2 seconds after stdin was closed")
 	}
 }
+
+// TestServeMediaProbeIsRegistered sends a media.probe request and asserts that
+// the handler is registered (i.e. the response is NOT UNKNOWN_METHOD). The
+// probe will fail with FFPROBE_MISSING because STUDIO_FFPROBE_PATH is not set
+// in this test, but that confirms the handler was found and invoked.
+func TestServeMediaProbeIsRegistered(t *testing.T) {
+	pr, pw := io.Pipe()
+	pr2, pw2 := io.Pipe()
+	var stderr bytes.Buffer
+
+	done := make(chan int, 1)
+	go func() {
+		done <- Run([]string{"serve"}, pr, pw2, &stderr)
+	}()
+
+	const request = `{"v":1,"id":"probe-1","kind":"request","method":"media.probe","payload":{"path":"/tmp/test.mp4"}}` + "\n"
+	if _, err := io.WriteString(pw, request); err != nil {
+		t.Fatalf("failed to write request: %v", err)
+	}
+
+	responseLine := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(pr2)
+		if scanner.Scan() {
+			responseLine <- scanner.Text()
+		} else {
+			responseLine <- ""
+		}
+	}()
+
+	var line string
+	select {
+	case line = <-responseLine:
+	case <-time.After(5 * time.Second):
+		_ = pw.Close()
+		t.Fatal("timed out waiting for media.probe response")
+	}
+
+	if line == "" {
+		t.Fatal("expected a non-empty response line")
+	}
+
+	var env map[string]any
+	if err := json.Unmarshal([]byte(line), &env); err != nil {
+		t.Fatalf("response is not valid JSON: %v\nline: %s", err, line)
+	}
+
+	id, _ := env["id"].(string)
+	if id != "probe-1" {
+		t.Errorf("expected response id=%q, got %q", "probe-1", id)
+	}
+
+	// The response must be an error (file not found or ffprobe missing) but
+	// must NOT be UNKNOWN_METHOD — that would mean the handler was not registered.
+	errField, hasError := env["error"]
+	if !hasError {
+		// If we somehow get a result (unlikely without a real binary), that's also fine.
+		if env["result"] == nil {
+			t.Errorf("response has neither \"result\" nor \"error\" field: %s", line)
+		}
+		return
+	}
+	errObj, ok := errField.(map[string]any)
+	if !ok {
+		t.Fatalf("\"error\" field is not an object: %v", errField)
+	}
+	code, _ := errObj["code"].(string)
+	if code == "UNKNOWN_METHOD" {
+		t.Errorf("media.probe returned UNKNOWN_METHOD — handler is not registered")
+	}
+
+	_ = pw.Close()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Error("serve did not exit within 2 seconds after stdin was closed")
+	}
+}
