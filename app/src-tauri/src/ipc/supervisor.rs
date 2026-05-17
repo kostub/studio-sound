@@ -46,6 +46,17 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Returns the platform-specific filename (no directory) for the bundled
 /// ffprobe binary, matching the Tauri `externalBin` naming convention.
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+)))]
+compile_error!(
+    "bundled_ffprobe_basename: unsupported target — add a basename here and \
+     a matching entry in third_party/ffprobe.lock.json + scripts/fetch-ffprobe.mjs"
+);
+
 pub(crate) fn bundled_ffprobe_basename() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     { "ffprobe-x86_64-apple-darwin" }

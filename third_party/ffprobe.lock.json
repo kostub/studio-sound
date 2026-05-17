@@ -3,9 +3,9 @@
   "source": "https://github.com/BtbN/FFmpeg-Builds/releases",
   "platforms": {
     "windows-amd64": {
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n7.1-latest-win64-lgpl-7.1.zip",
-      "sha256": "d88595424ec4f32edcd76e3a89d4885e6a93ea375153ef7a2b2b0534f4381b1c",
-      "innerPath": "ffmpeg-n7.1-latest-win64-lgpl-7.1/bin/ffprobe.exe"
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-05-16-13-15/ffmpeg-n7.1.4-win64-lgpl-7.1.zip",
+      "sha256": "2deea6667484a008333a3cb3cbac3acdbabd803a1abcaffe818cb07737b289a1",
+      "innerPath": "ffmpeg-n7.1.4-win64-lgpl-7.1/bin/ffprobe.exe"
     }
   }
 }
