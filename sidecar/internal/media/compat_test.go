@@ -109,3 +109,33 @@ func TestEvaluate_MultitrackAddsInformationalWarning(t *testing.T) {
 		t.Errorf("multitrack should produce a warning: %v", v.Warnings)
 	}
 }
+
+func TestEvaluate_AllowListMatrix(t *testing.T) {
+	cases := []struct {
+		container string
+		codec     string
+	}{
+		{"mov,mp4,m4a,3gp,3g2,mj2", "aac"},
+		{"mov,mp4,m4a,3gp,3g2,mj2", "mp3"},
+		{"matroska,webm", "opus"},
+		{"matroska,webm", "vorbis"},
+		{"matroska,webm", "flac"},
+		{"mov,mp4,m4a,3gp,3g2,mj2", "pcm_s16le"},
+		{"mov,mp4,m4a,3gp,3g2,mj2", "pcm_s24le"},
+		{"mov,mp4,m4a,3gp,3g2,mj2", "pcm_f32le"},
+	}
+	for _, c := range cases {
+		tracks := []AudioTrack{{Index: 0, Codec: c.codec, Channels: 2, SampleRate: 48000, IsDefault: true}}
+		r := &MediaProbeResult{
+			Container: Container{Format: c.container, LongName: c.container},
+			Audio: &AudioStream{
+				Codec: c.codec, Channels: 2, SampleRate: 48000,
+				TrackIndex: 0, TrackCount: 1, Tracks: tracks,
+			},
+		}
+		v := Evaluate(r)
+		if !v.Supported {
+			t.Errorf("%s/%s should be supported, got %+v", c.container, c.codec, v)
+		}
+	}
+}
