@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if s := os.Getenv("FAKE_FFPROBE_STDOUT"); s != "" {
-		fmt.Fprint(os.Stdout, s)
+		_, _ = fmt.Fprint(os.Stdout, s)
 	}
 	if n, _ := strconv.Atoi(os.Getenv("FAKE_FFPROBE_STDOUT_BYTES")); n > 0 {
 		buf := make([]byte, 4096)
@@ -37,7 +37,7 @@ func main() {
 		}
 	}
 	if s := os.Getenv("FAKE_FFPROBE_STDERR"); s != "" {
-		fmt.Fprint(os.Stderr, s)
+		_, _ = fmt.Fprint(os.Stderr, s)
 	}
 	if ms, _ := strconv.Atoi(os.Getenv("FAKE_FFPROBE_SLEEP_MS")); ms > 0 {
 		time.Sleep(time.Duration(ms) * time.Millisecond)
