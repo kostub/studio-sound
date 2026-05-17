@@ -105,3 +105,28 @@ func TestRun_StderrTailClippedTo4KiB(t *testing.T) {
 		t.Errorf("got stderr tail len %d, cap %d", len(r.StderrTail), stderrTailCap)
 	}
 }
+
+func TestLongPathPrefix_Windows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-only")
+	}
+	short := `C:\foo\bar.mp4`
+	if got := maybePrefixLongPath(short); got != short {
+		t.Errorf("short path was prefixed: %q", got)
+	}
+	long := `C:\` + strings.Repeat("a", 300) + `.mp4`
+	got := maybePrefixLongPath(long)
+	if !strings.HasPrefix(got, `\\?\`) {
+		t.Errorf("long path was not prefixed: %q", got)
+	}
+}
+
+func TestLongPathPrefix_Unix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-windows-only")
+	}
+	p := "/tmp/" + strings.Repeat("a", 300) + ".mp4"
+	if got := maybePrefixLongPath(p); got != p {
+		t.Errorf("unix path was modified: %q", got)
+	}
+}
