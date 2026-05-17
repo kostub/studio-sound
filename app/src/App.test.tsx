@@ -1,15 +1,21 @@
 import '@testing-library/jest-dom/vitest';
 
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+
+vi.mock('./ipc/client', () => ({ probe: vi.fn() }));
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({ onDragDropEvent: () => Promise.resolve(() => {}) }),
+}));
 
 import { App } from './App';
 
+afterEach(() => cleanup());
+
 describe('App', () => {
-  it('renders the Phase 0 bootstrap messages', () => {
+  it('renders WorkspaceShell (EmptyState visible by default)', () => {
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: 'Studio Sound App' })).toBeInTheDocument();
-    expect(screen.getByText('Phase 0 Bootstrap Successful')).toBeInTheDocument();
+    expect(screen.getByText(/drop a video here/i)).toBeInTheDocument();
   });
 });
