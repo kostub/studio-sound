@@ -44,10 +44,24 @@ const MAX_RESTART_ATTEMPTS: u32 = 8;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(200);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
+/// Returns the platform-specific filename (no directory) for the bundled
+/// ffprobe binary, matching the Tauri `externalBin` naming convention.
+pub(crate) fn bundled_ffprobe_basename() -> &'static str {
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    { "ffprobe-x86_64-apple-darwin" }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    { "ffprobe-aarch64-apple-darwin" }
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    { "ffprobe-x86_64-pc-windows-msvc.exe" }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    { "ffprobe-x86_64-unknown-linux-gnu" }
+}
+
 /// Information needed to spawn (or respawn) the sidecar.
 struct SpawnContext {
     app: AppHandle,
     log_path: PathBuf,
+    ffprobe_path: PathBuf,
 }
 
 /// Shared inner state owned by a [`Supervisor`].
@@ -116,6 +130,20 @@ impl Supervisor {
         })?;
         let log_path = log_dir.join("sidecar.log");
 
+        let resource_dir = app.path().resource_dir().map_err(|e| IpcError::Other {
+            code: "FFPROBE_MISSING".into(),
+            message: format!("failed to resolve resource directory: {e}"),
+            details: None,
+        })?;
+        let ffprobe_path = resource_dir.join("binaries").join(bundled_ffprobe_basename());
+        if !ffprobe_path.exists() {
+            return Err(IpcError::Other {
+                code: "FFPROBE_MISSING".into(),
+                message: format!("bundled ffprobe not found at {}", ffprobe_path.display()),
+                details: None,
+            });
+        }
+
         let (tx, _) = broadcast::channel(CHANNEL_CAPACITY);
         let inner = Arc::new(Inner {
             tx,
@@ -124,6 +152,7 @@ impl Supervisor {
             spawn_ctx: SpawnContext {
                 app: app.clone(),
                 log_path,
+                ffprobe_path,
             },
         });
 
@@ -230,7 +259,8 @@ fn spawn_child(
             details: None,
         })?
         .args(["serve"])
-        .env("STUDIO_LOG_FILE", ctx.log_path.to_string_lossy().to_string());
+        .env("STUDIO_LOG_FILE", ctx.log_path.to_string_lossy().to_string())
+        .env("STUDIO_FFPROBE_PATH", ctx.ffprobe_path.to_string_lossy().to_string());
 
     cmd.spawn().map_err(|e| IpcError::Other {
         code: "SIDECAR_UNAVAILABLE".into(),
@@ -412,6 +442,17 @@ mod tests {
         assert_eq!(got1.id, env.id);
         assert_eq!(got2.id, env.id);
         assert_eq!(got1.method, env.method);
+    }
+
+    #[test]
+    fn bundled_ffprobe_basename_uses_compile_time_triple() {
+        let name = bundled_ffprobe_basename();
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        assert_eq!(name, "ffprobe-x86_64-apple-darwin");
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        assert_eq!(name, "ffprobe-aarch64-apple-darwin");
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        assert_eq!(name, "ffprobe-x86_64-pc-windows-msvc.exe");
     }
 
     /// Verify that `send` serialises an envelope and appends exactly one `\n`.
