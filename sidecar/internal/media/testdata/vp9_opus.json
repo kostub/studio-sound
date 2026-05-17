@@ -1,0 +1,28 @@
+{
+  "format": {
+    "format_name": "matroska,webm",
+    "format_long_name": "Matroska / WebM",
+    "duration": "10.0",
+    "size": "20480"
+  },
+  "streams": [
+    {
+      "index": 0,
+      "codec_type": "video",
+      "codec_name": "vp9",
+      "width": 1920,
+      "height": 1080,
+      "r_frame_rate": "30/1",
+      "disposition": {"default": 1}
+    },
+    {
+      "index": 1,
+      "codec_type": "audio",
+      "codec_name": "opus",
+      "channels": 2,
+      "sample_rate": "48000",
+      "channel_layout": "stereo",
+      "disposition": {"default": 1}
+    }
+  ]
+}
