@@ -1,0 +1,26 @@
+:root {
+  /* radius */
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-input: 8px;
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* motion */
+  --motion-fast: 120ms;
+  --motion-medium: 200ms;
+  --motion-slow: 320ms;
+
+  /* status colours (PRD §14.4) */
+  --color-status-gray: #9ca3af;
+  --color-status-spinner: #3b82f6;
+  --color-status-green: #10b981;
+  --color-status-yellow: #f59e0b;
+  --color-status-red: #ef4444;
+}
