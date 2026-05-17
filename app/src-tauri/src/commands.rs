@@ -4,11 +4,10 @@
 //! delegates to [`IpcClient::call`] with the appropriate method name and timeout.
 //!
 //! # Error mapping
-//! Tauri requires that command errors implement `serde::Serialize`.  Rather than
-//! adding that bound to [`IpcError`] (which would pull in Serialize for all its
-//! variants), these commands map errors to a `String` via `.map_err(|e|
-//! e.to_string())`.  The frontend can parse the string to distinguish error
-//! kinds if needed; Phase 6 will introduce structured error serialisation.
+//! Tauri requires that command errors implement `serde::Serialize`. The
+//! `SerializableIpcError` struct maps every `IpcError` variant to a
+//! `{ code, message, details? }` JSON shape consumed by the frontend
+//! `toIpcError` helper.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -52,12 +51,12 @@ pub async fn ipc_ping(
 pub async fn ipc_echo(
     text: String,
     client: State<'_, Arc<IpcClient>>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, SerializableIpcError> {
     let payload = serde_json::json!({ "text": text });
     client
         .call("system.echo", payload, default_timeout("system.echo"))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(SerializableIpcError::from)
 }
 
 /// Sends a `system.shutdown` request to the sidecar.
@@ -66,7 +65,7 @@ pub async fn ipc_echo(
 #[tauri::command]
 pub async fn ipc_shutdown(
     client: State<'_, Arc<IpcClient>>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, SerializableIpcError> {
     client
         .call(
             "system.shutdown",
@@ -74,7 +73,7 @@ pub async fn ipc_shutdown(
             default_timeout("system.shutdown"),
         )
         .await
-        .map_err(|e| e.to_string())
+        .map_err(SerializableIpcError::from)
 }
 
 /// Opens the platform-specific application log directory in the system file manager
