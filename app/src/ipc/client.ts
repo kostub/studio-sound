@@ -38,16 +38,20 @@ export interface IpcError {
   details?: unknown;
 }
 
-/** Parse the string rejection from Tauri into a structured IpcError. */
-function toIpcError(err: unknown): IpcError {
+export function toIpcError(err: unknown): IpcError {
+  if (
+    err !== null &&
+    typeof err === 'object' &&
+    typeof (err as { code?: unknown }).code === 'string' &&
+    typeof (err as { message?: unknown }).message === 'string'
+  ) {
+    const e = err as { code: string; message: string; details?: unknown };
+    return { code: e.code, message: e.message, ...(e.details !== undefined ? { details: e.details } : {}) };
+  }
   if (typeof err === 'string') {
-    // Tauri serialises command errors as plain strings.
     return { code: 'UNKNOWN', message: err };
   }
-  if (err !== null && typeof err === 'object' && 'code' in err && 'message' in err) {
-    return err as IpcError;
-  }
-  return { code: 'UNKNOWN', message: String(err) };
+  return { code: 'UNKNOWN', message: String(err ?? 'unknown error') };
 }
 
 // ---------------------------------------------------------------------------
