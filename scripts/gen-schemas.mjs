@@ -14,6 +14,7 @@ const schemaFiles = [
   'system.ping.schema.json',
   'system.echo.schema.json',
   'system.shutdown.schema.json',
+  'media.probe.schema.json',
 ];
 
 function run(cmd, args, opts = {}) {
