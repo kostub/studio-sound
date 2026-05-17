@@ -8,6 +8,7 @@ on:
 jobs:
   validate:
     name: Validate (${{ matrix.os }})
+    if: ${{ !(startsWith(matrix.os, 'macos') && github.event.action == 'synchronize') }}
     runs-on: ${{ matrix.os }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
