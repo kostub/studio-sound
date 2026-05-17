@@ -135,3 +135,10 @@ a button to open the log directory.
 - Tauri build fails on Windows: install Microsoft C++ Build Tools and ensure WebView2 Runtime is available.
 - `npm run lint` cannot find `golangci-lint`: install it locally or use CI, where it is installed by the workflow.
 - Sidecar smoke test fails with permission denied on macOS: run `chmod +x app/src-tauri/binaries/studio-sidecar-aarch64-apple-darwin` or the Intel equivalent, then retry.
+
+## Bundled binaries
+
+This application bundles `ffprobe` from FFmpeg under the LGPL v2.1 (or later).
+The full license text is at [`third_party/LICENSE.ffmpeg-lgpl.txt`](third_party/LICENSE.ffmpeg-lgpl.txt).
+Source builds: <https://github.com/BtbN/FFmpeg-Builds> (LGPL releases).
+Version and SHA-256 hashes are pinned in [`third_party/ffprobe.lock.json`](third_party/ffprobe.lock.json).
