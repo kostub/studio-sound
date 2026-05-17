@@ -24,6 +24,7 @@ fn default_timeout(method: &str) -> Duration {
         "system.ping" => Duration::from_secs(2),
         "system.echo" => Duration::from_secs(5),
         "system.shutdown" => Duration::from_secs(2),
+        "media.probe" => Duration::from_secs(30),
         _ => Duration::from_secs(10),
     }
 }
@@ -72,6 +73,22 @@ pub async fn ipc_shutdown(
             serde_json::Value::Null,
             default_timeout("system.shutdown"),
         )
+        .await
+        .map_err(SerializableIpcError::from)
+}
+
+/// Probes a media file and returns the canonical MediaProbeResult.
+///
+/// `path` is forwarded verbatim — the supervisor's child has the bundled
+/// ffprobe path in env, and the sidecar handler validates / resolves it.
+#[tauri::command]
+pub async fn media_probe(
+    path: String,
+    client: State<'_, Arc<IpcClient>>,
+) -> Result<serde_json::Value, SerializableIpcError> {
+    let payload = serde_json::json!({ "path": path });
+    client
+        .call("media.probe", payload, default_timeout("media.probe"))
         .await
         .map_err(SerializableIpcError::from)
 }
