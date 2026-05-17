@@ -2,9 +2,10 @@
  * Frontend IPC client — thin wrappers around Tauri's `invoke` for the three
  * Phase 1 IPC methods.
  *
- * All three Tauri commands return `serde_json::Value` on success and a plain
- * string on error.  The wrappers here re-throw string rejections as `IpcError`
- * objects so callers have a uniform error type.
+ * All three Tauri commands return `serde_json::Value` on success and a
+ * structured `{ code, message, details? }` error (`SerializableIpcError`)
+ * on failure.  `toIpcError` normalises rejections — preferring the structured
+ * shape, with a string/unknown fallback that maps to `code: 'UNKNOWN'`.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -38,16 +39,20 @@ export interface IpcError {
   details?: unknown;
 }
 
-/** Parse the string rejection from Tauri into a structured IpcError. */
-function toIpcError(err: unknown): IpcError {
+export function toIpcError(err: unknown): IpcError {
+  if (
+    err !== null &&
+    typeof err === 'object' &&
+    typeof (err as { code?: unknown }).code === 'string' &&
+    typeof (err as { message?: unknown }).message === 'string'
+  ) {
+    const e = err as { code: string; message: string; details?: unknown };
+    return { code: e.code, message: e.message, ...(e.details !== undefined ? { details: e.details } : {}) };
+  }
   if (typeof err === 'string') {
-    // Tauri serialises command errors as plain strings.
     return { code: 'UNKNOWN', message: err };
   }
-  if (err !== null && typeof err === 'object' && 'code' in err && 'message' in err) {
-    return err as IpcError;
-  }
-  return { code: 'UNKNOWN', message: String(err) };
+  return { code: 'UNKNOWN', message: String(err ?? 'unknown error') };
 }
 
 // ---------------------------------------------------------------------------

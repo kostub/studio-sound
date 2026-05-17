@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://studiosound.app/schemas/media.probe.schema.json",
+  "title": "MediaProbe",
+  "type": "object",
+  "$defs": {
+    "ProbePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "ProbeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "filename", "sizeBytes", "container", "audio", "compatibility"],
+      "properties": {
+        "id":              { "type": "string", "format": "uuid", "minLength": 1, "maxLength": 64 },
+        "path":            { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "filename":        { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "sizeBytes":       { "type": "integer", "minimum": 0 },
+        "durationSeconds": { "type": "number",  "minimum": 0 },
+        "container":       { "$ref": "#/$defs/Container" },
+        "video":           { "$ref": "#/$defs/Video" },
+        "audio": {
+          "oneOf": [
+            { "$ref": "#/$defs/Audio" },
+            { "type": "null" }
+          ]
+        },
+        "compatibility":   { "$ref": "#/$defs/Compatibility" }
+      }
+    },
+    "Container": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "longName"],
+      "properties": {
+        "format":   { "type": "string", "minLength": 1, "maxLength": 256 },
+        "longName": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "Video": {
+      "type": "object", "additionalProperties": false,
+      "required": ["codec", "width", "height", "fps"],
+      "properties": {
+        "codec":       { "type": "string", "maxLength": 64 },
+        "width":       { "type": "integer", "minimum": 0 },
+        "height":      { "type": "integer", "minimum": 0 },
+        "fps":         { "type": "number",  "minimum": 0 },
+        "bitrate":     { "type": "integer", "minimum": 0 },
+        "pixelFormat": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "Audio": {
+      "type": "object", "additionalProperties": false,
+      "required": ["codec", "channels", "sampleRate", "trackIndex", "trackCount", "tracks"],
+      "properties": {
+        "codec":       { "type": "string", "maxLength": 64 },
+        "channels":    { "type": "integer", "minimum": 0 },
+        "sampleRate":  { "type": "integer", "minimum": 0 },
+        "bitrate":     { "type": "integer", "minimum": 0 },
+        "layout":      { "type": "string", "maxLength": 128 },
+        "trackIndex":  { "type": "integer", "minimum": 0 },
+        "trackCount":  { "type": "integer", "minimum": 1 },
+        "tracks": {
+          "type": "array", "minItems": 1,
+          "items": { "$ref": "#/$defs/AudioTrack" }
+        }
+      }
+    },
+    "AudioTrack": {
+      "type": "object", "additionalProperties": false,
+      "required": ["index", "codec", "channels", "sampleRate", "isDefault"],
+      "properties": {
+        "index":      { "type": "integer", "minimum": 0 },
+        "codec":      { "type": "string", "maxLength": 64 },
+        "channels":   { "type": "integer", "minimum": 0 },
+        "sampleRate": { "type": "integer", "minimum": 0 },
+        "bitrate":    { "type": "integer", "minimum": 0 },
+        "layout":     { "type": "string", "maxLength": 128 },
+        "title":      { "type": "string", "maxLength": 256 },
+        "language":   { "type": "string", "maxLength": 32 },
+        "isDefault":  { "type": "boolean" }
+      }
+    },
+    "Compatibility": {
+      "type": "object", "additionalProperties": false,
+      "required": ["supported", "issues", "warnings"],
+      "properties": {
+        "supported": { "type": "boolean" },
+        "issues":    { "type": "array", "items": { "type": "string", "maxLength": 512 } },
+        "warnings":  { "type": "array", "items": { "type": "string", "maxLength": 512 } }
+      }
+    }
+  }
+}

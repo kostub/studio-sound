@@ -13,6 +13,11 @@ const (
 	CodeInternalError           = "INTERNAL_ERROR"
 	CodeMessageTooLarge         = "MESSAGE_TOO_LARGE"
 	CodeEchoTooLong             = "ECHO_TOO_LONG"
+	CodeFileNotFound            = "FILE_NOT_FOUND"
+	CodeAccessDenied            = "ACCESS_DENIED"
+	CodeCorruptMedia            = "CORRUPT_MEDIA"
+	CodeFFprobeFailure          = "FFPROBE_FAILURE"
+	CodeFFprobeMissing          = "FFPROBE_MISSING"
 )
 
 var (
