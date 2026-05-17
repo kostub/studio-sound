@@ -6,7 +6,8 @@
     "app"
   ],
   "scripts": {
-    "setup": "node scripts/check-prereqs.mjs && npm install && npm run sidecar:build",
+    "setup": "node scripts/check-prereqs.mjs && npm install && npm run ffprobe:fetch && npm run sidecar:build",
+    "ffprobe:fetch": "node scripts/fetch-ffprobe.mjs",
     "start": "npm run sidecar:build && npm run dev -w app",
     "dev": "npm start",
     "build": "npm run sidecar:build && npm run build -w app",
