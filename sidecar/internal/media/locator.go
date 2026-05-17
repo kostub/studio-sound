@@ -17,7 +17,8 @@ func ResolveFFprobe() (string, error) {
 	if path == "" {
 		return "", ErrFFprobeMissing
 	}
-	if _, err := os.Stat(path); err != nil {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
 		return "", ErrFFprobeMissing
 	}
 	return path, nil

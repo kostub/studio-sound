@@ -40,9 +40,16 @@ func TestResolveFFprobe_ReturnsErrWhenFileMissing(t *testing.T) {
 }
 
 func TestResolveFFprobe_DoesNotConsultPATH(t *testing.T) {
+	tmp := t.TempDir()
+	fake := filepath.Join(tmp, "ffprobe")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tmp+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("STUDIO_FFPROBE_PATH", "")
+
 	_, err := ResolveFFprobe()
 	if !errors.Is(err, ErrFFprobeMissing) {
-		t.Errorf("got %v, want ErrFFprobeMissing", err)
+		t.Errorf("got %v, want ErrFFprobeMissing — locator must not consult PATH", err)
 	}
 }

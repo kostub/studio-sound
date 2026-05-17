@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os/exec"
 )
 
@@ -73,14 +72,16 @@ type cappedBuffer struct {
 }
 
 func (c *cappedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
 	remaining := c.cap - c.buf.Len()
 	if remaining <= 0 {
-		return len(p), nil
+		return n, nil
 	}
 	if len(p) > remaining {
 		p = p[:remaining]
 	}
-	return c.buf.Write(p)
+	_, err := c.buf.Write(p)
+	return n, err
 }
 
 func (c *cappedBuffer) Bytes() []byte { return c.buf.Bytes() }
@@ -92,10 +93,15 @@ type tailBuffer struct {
 }
 
 func (t *tailBuffer) Write(p []byte) (int, error) {
-	n, err := t.buf.Write(p)
+	n := len(p)
+	if n >= t.cap {
+		t.buf.Reset()
+		_, err := t.buf.Write(p[n-t.cap:])
+		return n, err
+	}
+	_, err := t.buf.Write(p)
 	if t.buf.Len() > t.cap {
-		excess := t.buf.Len() - t.cap
-		_, _ = io.CopyN(io.Discard, &t.buf, int64(excess))
+		t.buf.Next(t.buf.Len() - t.cap)
 	}
 	return n, err
 }

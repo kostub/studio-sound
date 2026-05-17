@@ -5,6 +5,7 @@ package media
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/sys/windows"
@@ -23,11 +24,12 @@ func killGroup(cmd *exec.Cmd) error {
 }
 
 func maybeLongPath(p string) string {
-	if len(p) <= 240 {
+	if len(p) <= 240 || strings.HasPrefix(p, `\\?\`) {
 		return p
 	}
-	if strings.HasPrefix(p, `\\?\`) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
 		return p
 	}
-	return `\\?\` + p
+	return `\\?\` + abs
 }
