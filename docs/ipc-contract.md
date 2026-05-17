@@ -52,6 +52,11 @@ limit are rejected with a `MESSAGE_TOO_LARGE` error).
 | `SIDECAR_UNAVAILABLE`       | Rust      | Sidecar is not in the `Up` state.                          |
 | `SIDECAR_BUSY`              | Rust      | More than 64 requests are in flight.                       |
 | `TIMEOUT`                   | Rust      | The per-method deadline expired before a response arrived. |
+| `FILE_NOT_FOUND`            | Go        | The file path supplied to `media.probe` does not exist.    |
+| `ACCESS_DENIED`             | Go        | The file path supplied to `media.probe` is not readable.   |
+| `CORRUPT_MEDIA`             | Go        | ffprobe could not parse the file (invalid / truncated).    |
+| `FFPROBE_FAILURE`           | Go        | ffprobe exited with a non-zero status for an unknown reason.|
+| `FFPROBE_MISSING`           | Go        | The ffprobe binary was not found on `PATH`.                |
 
 ---
 
@@ -145,6 +150,139 @@ the process exits cleanly with code `0`.
 
 ```json
 { "v": 1, "id": "<id>", "kind": "response", "result": { "accepted": true } }
+```
+
+---
+
+### `media.probe`
+
+Probes a media file using ffprobe and returns structured metadata together with
+a compatibility assessment for Studio Sound.
+
+**Request**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "request",
+  "method": "media.probe",
+  "payload": { "path": "/absolute/path/to/file.mp4" }
+}
+```
+
+| Payload field | Type   | Constraint                   |
+| ------------- | ------ | ---------------------------- |
+| `path`        | string | Required. Absolute file path.|
+
+**Response (success)**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "result": {
+    "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+    "path": "/absolute/path/to/file.mp4",
+    "filename": "file.mp4",
+    "sizeBytes": 104857600,
+    "durationSeconds": 120.5,
+    "container": { "format": "mov,mp4,m4a,3gp,3g2,mj2", "longName": "QuickTime / MOV" },
+    "video": {
+      "codec": "h264", "width": 1920, "height": 1080,
+      "fps": 29.97, "bitrate": 8000000, "pixelFormat": "yuv420p"
+    },
+    "audio": {
+      "codec": "aac", "channels": 2, "sampleRate": 48000,
+      "bitrate": 320000, "layout": "stereo",
+      "trackIndex": 0, "trackCount": 1,
+      "tracks": [
+        {
+          "index": 0, "codec": "aac", "channels": 2, "sampleRate": 48000,
+          "bitrate": 320000, "layout": "stereo", "isDefault": true
+        }
+      ]
+    },
+    "compatibility": { "supported": true, "issues": [], "warnings": [] }
+  }
+}
+```
+
+| Result field        | Type              | Notes                                                         |
+| ------------------- | ----------------- | ------------------------------------------------------------- |
+| `id`                | string (UUID v4)  | Stable identifier for this probe result.                      |
+| `path`              | string            | Absolute path as supplied in the payload.                     |
+| `filename`          | string            | Basename of the path.                                         |
+| `sizeBytes`         | integer           | File size in bytes.                                           |
+| `durationSeconds`   | number (optional) | Duration; absent for image-only or indeterminate containers.  |
+| `container.format`  | string            | ffprobe `format_name`.                                        |
+| `container.longName`| string            | ffprobe `format_long_name`.                                   |
+| `video`             | object (optional) | Present when a video stream exists.                           |
+| `audio`             | object or `null`  | `null` when no audio stream is found.                         |
+| `compatibility`     | object            | Compatibility assessment (see below).                         |
+
+**Compatibility assessment**
+
+Unsupported container, unsupported codec, and no-audio-stream cases are reported
+as **successful** responses with `compatibility.supported=false` and
+human-readable strings in `compatibility.issues[]`. Only file-system errors
+(`FILE_NOT_FOUND`, `ACCESS_DENIED`), parse failures (`CORRUPT_MEDIA`), and
+runner errors (`FFPROBE_FAILURE`, `FFPROBE_MISSING`) surface as RPC errors.
+
+| Compatibility field | Type     | Notes                                                            |
+| ------------------- | -------- | ---------------------------------------------------------------- |
+| `supported`         | boolean  | `false` when any issue makes the file unusable for this session. |
+| `issues`            | string[] | Human-readable blockers (non-empty when `supported=false`).      |
+| `warnings`          | string[] | Non-blocking concerns (e.g. high bitrate, unusual layout).       |
+
+**Error: file not found**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "error": { "code": "FILE_NOT_FOUND", "message": "no such file: /path/to/file.mp4" }
+}
+```
+
+**Error: access denied**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "error": { "code": "ACCESS_DENIED", "message": "permission denied: /path/to/file.mp4" }
+}
+```
+
+**Error: corrupt or unrecognised media**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "error": {
+    "code": "CORRUPT_MEDIA",
+    "message": "ffprobe could not parse the file",
+    "details": { "stderrTail": "moov atom not found" }
+  }
+}
+```
+
+**Error: ffprobe exited with unexpected failure**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "error": {
+    "code": "FFPROBE_FAILURE",
+    "message": "ffprobe exited with code 1",
+    "details": { "stderrTail": "..." }
+  }
+}
+```
+
+**Error: ffprobe binary not found**
+
+```json
+{
+  "v": 1, "id": "<id>", "kind": "response",
+  "error": { "code": "FFPROBE_MISSING", "message": "ffprobe not found on PATH" }
+}
 ```
 
 ---
