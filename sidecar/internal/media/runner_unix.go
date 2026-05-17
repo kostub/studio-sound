@@ -18,3 +18,5 @@ func killGroup(cmd *exec.Cmd) error {
 	// Negative pid kills the whole process group.
 	return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 }
+
+func maybeLongPath(p string) string { return p }
