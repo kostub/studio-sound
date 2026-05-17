@@ -58,6 +58,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache ffprobe downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/studio-sound/ffprobe
+          key: ffprobe-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('third_party/ffprobe.lock.json') }}
+
+      - name: Fetch ffprobe
+        run: npm run ffprobe:fetch
+
+      - name: Verify ffprobe artifacts
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ls -l app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+            test -s app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe || { echo "no Windows ffprobe artifact"; exit 1; }
+          else
+            echo "No macOS ffprobe in lock (BtbN does not publish macOS builds); skipping artifact check."
+          fi
+
       - name: Generate schemas
         run: npm run gen:schemas
 
@@ -77,6 +96,8 @@ jobs:
         run: npm run test
 
       - name: Integration tests (sidecar E2E)
+        env:
+          STUDIO_FFPROBE_PATH: ${{ runner.os == 'Windows' && format('{0}\app\src-tauri\binaries\ffprobe-x86_64-pc-windows-msvc.exe', github.workspace) || (runner.arch == 'ARM64' && format('{0}/app/src-tauri/binaries/ffprobe-aarch64-apple-darwin', github.workspace) || format('{0}/app/src-tauri/binaries/ffprobe-x86_64-apple-darwin', github.workspace)) }}
         run: cd sidecar && go test -tags=integration ./...
 
       - name: Build sidecar
