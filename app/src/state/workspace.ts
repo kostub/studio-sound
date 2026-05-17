@@ -12,20 +12,21 @@ export type WorkspaceStatus =
   | 'RETRYING'
   | 'REMOVED';
 
+// Data fields are stored as `T | undefined` (not optional) so that
+// `exactOptionalPropertyTypes` does not prevent explicit `undefined` assignments
+// inside Zustand's `set()` updater.
 export interface WorkspaceState {
   status: WorkspaceStatus;
-  path?: string;
-  result?: ProbeResult;
-  error?: IpcError;
+  path: string | undefined;
+  result: ProbeResult | undefined;
+  error: IpcError | undefined;
   loadFile: (path: string) => Promise<void>;
   replaceFile: (path: string) => Promise<void>;
   clearFile: () => void;
   retry: () => Promise<void>;
 }
 
-type SliceData = Omit<WorkspaceState, 'loadFile' | 'replaceFile' | 'clearFile' | 'retry'>;
-
-const initial: SliceData = {
+const EMPTY: Pick<WorkspaceState, 'status' | 'path' | 'result' | 'error'> = {
   status: 'EMPTY',
   path: undefined,
   result: undefined,
@@ -33,7 +34,7 @@ const initial: SliceData = {
 };
 
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
-  ...initial,
+  ...EMPTY,
 
   async loadFile(path: string) {
     set({ status: 'FILE_LOADED', path, result: undefined, error: undefined });
@@ -52,7 +53,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   },
 
   clearFile() {
-    set({ ...initial });
+    set({ ...EMPTY });
   },
 
   async retry() {
@@ -70,10 +71,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
 
 // For tests only — resets the store between cases.
 export function resetWorkspaceForTest(): void {
-  useWorkspace.setState({ ...initial });
+  useWorkspace.setState({ ...EMPTY });
 }
 
 // Selector helpers used by components.
 export const useWorkspaceStatus = (): WorkspaceStatus => useWorkspace((s) => s.status);
-export const useWorkspaceFile = (): { path: string | undefined; result: ProbeResult | undefined; error: IpcError | undefined } =>
-  useWorkspace((s) => ({ path: s.path, result: s.result, error: s.error }));
+export const useWorkspaceFile = (): {
+  path: string | undefined;
+  result: ProbeResult | undefined;
+  error: IpcError | undefined;
+} => useWorkspace((s) => ({ path: s.path, result: s.result, error: s.error }));
