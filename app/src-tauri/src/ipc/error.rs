@@ -70,6 +70,10 @@ impl From<IpcError> for SerializableIpcError {
                 message: err.to_string(),
                 details: None,
             },
+            // `Other` is the only arm that does not use `err.to_string()` for
+            // the message: the Display impl prefixes "ipc error {code}: " and
+            // drops `details`. We instead forward the raw fields verbatim so
+            // sidecar-originated errors round-trip unchanged to the frontend.
             IpcError::Other { code, message, details } => Self {
                 code: code.clone(),
                 message: message.clone(),

@@ -27,4 +27,10 @@ describe('toIpcError', () => {
     expect(toIpcError(null).code).toBe('UNKNOWN');
     expect(toIpcError(undefined).code).toBe('UNKNOWN');
   });
+
+  it('falls back to UNKNOWN for partial-shape object missing message', () => {
+    const e = toIpcError({ code: 'FILE_NOT_FOUND' });
+    expect(e.code).toBe('UNKNOWN');
+    expect(e.message).toBe('[object Object]');
+  });
 });

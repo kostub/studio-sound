@@ -55,7 +55,7 @@ limit are rejected with a `MESSAGE_TOO_LARGE` error).
 | `FILE_NOT_FOUND`            | Go        | The file path supplied to `media.probe` does not exist.    |
 | `ACCESS_DENIED`             | Go        | The file path supplied to `media.probe` is not readable.   |
 | `CORRUPT_MEDIA`             | Go        | ffprobe could not parse the file (invalid / truncated).    |
-| `FFPROBE_FAILURE`           | Go        | ffprobe exited with a non-zero status for an unknown reason.|
+| `FFPROBE_FAILURE`           | Go        | ffprobe exited with a non-zero status for an unknown reason. |
 | `FFPROBE_MISSING`           | Go        | The ffprobe binary was not found on `PATH`.                |
 
 ---

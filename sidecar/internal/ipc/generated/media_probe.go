@@ -231,8 +231,14 @@ func (j *Container) UnmarshalJSON(value []byte) error {
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
 	}
+	if len(plain.Format) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "format", 1)
+	}
 	if len(plain.Format) > 256 {
 		return fmt.Errorf("field %s length: must be <= %d", "format", 256)
+	}
+	if len(plain.LongName) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "longName", 1)
 	}
 	if len(plain.LongName) > 1024 {
 		return fmt.Errorf("field %s length: must be <= %d", "longName", 1024)

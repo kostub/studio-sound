@@ -17,7 +17,7 @@
       "additionalProperties": false,
       "required": ["id", "path", "filename", "sizeBytes", "container", "audio", "compatibility"],
       "properties": {
-        "id":              { "type": "string", "minLength": 1, "maxLength": 64 },
+        "id":              { "type": "string", "format": "uuid", "minLength": 1, "maxLength": 64 },
         "path":            { "type": "string", "minLength": 1, "maxLength": 4096 },
         "filename":        { "type": "string", "minLength": 1, "maxLength": 1024 },
         "sizeBytes":       { "type": "integer", "minimum": 0 },
@@ -37,8 +37,8 @@
       "type": "object", "additionalProperties": false,
       "required": ["format", "longName"],
       "properties": {
-        "format":   { "type": "string", "maxLength": 256 },
-        "longName": { "type": "string", "maxLength": 1024 }
+        "format":   { "type": "string", "minLength": 1, "maxLength": 256 },
+        "longName": { "type": "string", "minLength": 1, "maxLength": 1024 }
       }
     },
     "Video": {

@@ -2,9 +2,10 @@
  * Frontend IPC client — thin wrappers around Tauri's `invoke` for the three
  * Phase 1 IPC methods.
  *
- * All three Tauri commands return `serde_json::Value` on success and a plain
- * string on error.  The wrappers here re-throw string rejections as `IpcError`
- * objects so callers have a uniform error type.
+ * All three Tauri commands return `serde_json::Value` on success and a
+ * structured `{ code, message, details? }` error (`SerializableIpcError`)
+ * on failure.  `toIpcError` normalises rejections — preferring the structured
+ * shape, with a string/unknown fallback that maps to `code: 'UNKNOWN'`.
  */
 
 import { invoke } from '@tauri-apps/api/core';
