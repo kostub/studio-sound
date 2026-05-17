@@ -1,3 +1,18 @@
+// Package media wraps a bundled ffprobe subprocess and produces the
+// canonical MediaProbeResult shape consumed by the media.probe IPC method.
+//
+// The package layers are:
+//   - locator.go: resolve the ffprobe binary path
+//   - runner.go (+ _unix/_windows): invoke ffprobe with bounded I/O and
+//     process-group cancellation
+//   - parser.go: decode ffprobe JSON tolerantly
+//   - normalize.go: project the parsed output onto the wire-stable
+//     MediaProbeResult; audio is object-or-nil (encoded as JSON null when
+//     no audio stream is present)
+//   - compat.go: classify the file against the allow-list; unsupported
+//     produces supported=false + descriptive issues (NOT an RPC error)
+//   - errors.go: map runner / parse failures into RPC errors
+//   - media.go: the public Probe orchestrator
 package media
 
 import (
