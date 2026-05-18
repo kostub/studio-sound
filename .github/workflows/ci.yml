@@ -17,10 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-latest
-          - macos-26-intel
-          - macos-26
+        os: ${{ fromJSON(github.event.action == 'synchronize' && '["windows-latest"]' || '["windows-latest", "macos-26-intel", "macos-26"]') }}
 
     steps:
       - name: Checkout
