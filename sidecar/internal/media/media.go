@@ -45,7 +45,7 @@ func Probe(ctx context.Context, ffprobePath, mediaPath string) (*MediaProbeResul
 		return nil, MapParseError(parseErr)
 	}
 
-	result, _ := Normalize(parsed, mediaPath, int(info.Size()))
+	result := Normalize(parsed, mediaPath, int(info.Size()))
 	v := Evaluate(result)
 	result.Compatibility = Compatibility{
 		Supported: v.Supported,

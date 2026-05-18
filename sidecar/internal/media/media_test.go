@@ -2,10 +2,13 @@ package media
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/studio-sound/studio/sidecar/internal/ipc"
 )
 
 func TestProbe_HappyPathWithFakeFFprobe(t *testing.T) {
@@ -77,5 +80,12 @@ func TestProbe_CorruptStderrMapsToCorruptMedia(t *testing.T) {
 	_, err := Probe(ctx, fake, mediaPath)
 	if err == nil {
 		t.Fatal("expected err")
+	}
+	var rpcErr *ipc.RPCError
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("Probe error not assertable to *ipc.RPCError: %T %v", err, err)
+	}
+	if rpcErr.Code != ipc.CodeCorruptMedia {
+		t.Errorf("got code %q, want %q", rpcErr.Code, ipc.CodeCorruptMedia)
 	}
 }

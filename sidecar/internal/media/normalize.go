@@ -13,7 +13,7 @@ import (
 // Normalize converts a parsed ffprobe output into the canonical MediaProbeResult.
 // Audio is nil when no audio stream is present (JSON null when marshalled).
 // Compatibility is zero-valued; Evaluate fills it in.
-func Normalize(in *ffprobeOutput, path string, sizeBytes int) (*MediaProbeResult, error) {
+func Normalize(in *ffprobeOutput, path string, sizeBytes int) *MediaProbeResult {
 	r := &MediaProbeResult{
 		ID:        newUUID(),
 		Path:      path,
@@ -83,7 +83,7 @@ func Normalize(in *ffprobeOutput, path string, sizeBytes int) (*MediaProbeResult
 		}
 	}
 
-	return r, nil
+	return r
 }
 
 func defaultAudioIndex(streams []ffprobeStream) int {

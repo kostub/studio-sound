@@ -47,11 +47,16 @@ func Evaluate(r *MediaProbeResult) Verdict {
 	return v
 }
 
+// ffprobe reports format_name as a comma-separated list of format families
+// (e.g. "mov,mp4,m4a,3gp,3g2,mj2"). Split and exact-match per token so we
+// don't false-positive on substrings like "movie" containing "mov".
 func containerSupported(formatName string) bool {
-	lowered := strings.ToLower(formatName)
-	for _, tok := range supportedContainerTokens {
-		if strings.Contains(lowered, tok) {
-			return true
+	for _, f := range strings.Split(strings.ToLower(formatName), ",") {
+		f = strings.TrimSpace(f)
+		for _, tok := range supportedContainerTokens {
+			if f == tok {
+				return true
+			}
 		}
 	}
 	return false

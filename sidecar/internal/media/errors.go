@@ -41,9 +41,19 @@ func MapParseError(err error) *ipc.RPCError {
 	return ipc.NewRPCError(ipc.CodeCorruptMedia, "ffprobe output parse failed: "+truncate(err.Error(), 256))
 }
 
+// truncate clips s to at most n runes (not bytes) so we never cut a
+// multi-byte UTF-8 character in half when error messages contain
+// non-ASCII path components.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	var count int
+	for i := range s {
+		if count == n {
+			return s[:i] + "..."
+		}
+		count++
+	}
+	return s
 }

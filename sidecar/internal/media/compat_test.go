@@ -7,8 +7,11 @@ import (
 
 func eval(t *testing.T, fixture string) (*MediaProbeResult, Verdict) {
 	t.Helper()
-	out, _ := Parse(readFixture(t, fixture))
-	r, _ := Normalize(out, "/tmp/x", 1)
+	out, err := Parse(readFixture(t, fixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Normalize(out, "/tmp/x", 1)
 	v := Evaluate(r)
 	return r, v
 }
