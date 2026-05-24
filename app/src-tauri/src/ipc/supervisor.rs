@@ -172,7 +172,7 @@ impl Supervisor {
         let (event_rx, child) = spawn_child(&inner.spawn_ctx)?;
         install_child(&inner, child);
 
-        tokio::spawn(read_loop(Arc::clone(&inner), event_rx));
+        tauri::async_runtime::spawn(read_loop(Arc::clone(&inner), event_rx));
 
         Ok(Self { inner })
     }

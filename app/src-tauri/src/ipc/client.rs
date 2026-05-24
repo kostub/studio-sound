@@ -61,7 +61,7 @@ impl IpcClient {
         // routes response envelopes to the appropriate pending callers.
         let mut rx = inner.supervisor.subscribe();
         let inner_weak = Arc::downgrade(&inner);
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             loop {
                 match rx.recv().await {
                     Ok(envelope) => {
