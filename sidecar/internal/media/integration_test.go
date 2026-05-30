@@ -4,10 +4,13 @@ package media
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/studio-sound/studio/sidecar/internal/ipc"
 )
 
 func ffprobePathForTest(t *testing.T) string {
@@ -99,6 +102,13 @@ func TestIntegration_Corrupt(t *testing.T) {
 	_, err := Probe(ctx, ffprobePathForTest(t), assetPath(t, "corrupt-truncated.mp4"))
 	if err == nil {
 		t.Fatal("expected error for corrupt file, got nil")
+	}
+	var rpcErr *ipc.RPCError
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("expected *ipc.RPCError, got %T: %v", err, err)
+	}
+	if rpcErr.Code != ipc.CodeCorruptMedia {
+		t.Errorf("code = %s, want %s", rpcErr.Code, ipc.CodeCorruptMedia)
 	}
 }
 

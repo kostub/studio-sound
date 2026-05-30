@@ -142,6 +142,14 @@ func TestServeMediaProbeIsRegistered(t *testing.T) {
 	go func() {
 		done <- Run([]string{"serve"}, pr, pw2, &stderr)
 	}()
+	t.Cleanup(func() {
+		_ = pw.Close()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("serve did not exit within 2 seconds after stdin was closed")
+		}
+	})
 
 	const request = `{"v":1,"id":"probe-1","kind":"request","method":"media.probe","payload":{"path":"/tmp/test.mp4"}}` + "\n"
 	if _, err := io.WriteString(pw, request); err != nil {
@@ -197,12 +205,5 @@ func TestServeMediaProbeIsRegistered(t *testing.T) {
 	code, _ := errObj["code"].(string)
 	if code == "UNKNOWN_METHOD" {
 		t.Errorf("media.probe returned UNKNOWN_METHOD — handler is not registered")
-	}
-
-	_ = pw.Close()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Error("serve did not exit within 2 seconds after stdin was closed")
 	}
 }

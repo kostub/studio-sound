@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -82,23 +83,18 @@ func ProbeHandler(ctx context.Context, id string, payload json.RawMessage) (any,
 	if probeErr != nil {
 		code := ""
 		var rpc *ipc.RPCError
-		if ok := isRPCError(probeErr, &rpc); ok {
+		if errors.As(probeErr, &rpc) {
 			code = rpc.Code
 		}
 		slog.Warn("probe_failed", "id", id, "duration_ms", elapsed, "code", code)
 		return nil, probeErr
 	}
 
+	if result == nil {
+		return nil, ipc.NewRPCError(ipc.CodeInternalError, "media probe returned nil result")
+	}
+
 	slog.Info("probe_completed", "id", id, "duration_ms", elapsed,
 		"supported", result.Compatibility.Supported)
 	return result, nil
-}
-
-// isRPCError checks whether err is a *ipc.RPCError and, if so, sets out.
-func isRPCError(err error, out **ipc.RPCError) bool {
-	if rpc, ok := err.(*ipc.RPCError); ok {
-		*out = rpc
-		return true
-	}
-	return false
 }
