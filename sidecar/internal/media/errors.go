@@ -19,6 +19,8 @@ func MapRunError(err error, stderrTail string) *ipc.RPCError {
 		return ipc.NewRPCError(ipc.CodeAccessDenied, "permission denied opening media file")
 	case errors.Is(err, context.DeadlineExceeded):
 		return ipc.NewRPCError(ipc.CodeFFprobeFailure, "probe exceeded 10s deadline")
+	case errors.Is(err, context.Canceled):
+		return ipc.NewRPCError(ipc.CodeFFprobeFailure, "probe was cancelled")
 	case errors.Is(err, ErrFFprobeMissing):
 		return ipc.NewRPCError(ipc.CodeFFprobeFailure, "ffprobe binary not located")
 	}

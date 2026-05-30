@@ -53,6 +53,7 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 			d.Register("system.ping", handlers.PingHandler)
 			d.Register("system.echo", handlers.EchoHandler)
 			d.Register("system.shutdown", handlers.ShutdownHandler(cancel))
+			d.Register("media.probe", handlers.ProbeHandler)
 		}
 		if err := ipc.Serve(ctx, stdin, stdout, log, setup); err != nil && err != io.EOF {
 			_, _ = fmt.Fprintf(stderr, "serve failed: %v\n", err)

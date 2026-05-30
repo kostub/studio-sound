@@ -33,6 +33,16 @@ func TestMapRunError_DeadlineExceeded(t *testing.T) {
 	}
 }
 
+func TestMapRunError_Canceled(t *testing.T) {
+	e := MapRunError(context.Canceled, "")
+	if e.Code != ipc.CodeFFprobeFailure {
+		t.Errorf("code = %s, want %s", e.Code, ipc.CodeFFprobeFailure)
+	}
+	if e.Message != "probe was cancelled" {
+		t.Errorf("message = %q, want %q", e.Message, "probe was cancelled")
+	}
+}
+
 func TestMapRunError_CorruptMediaFromStderrMoov(t *testing.T) {
 	e := MapRunError(errors.New("exit 1"), "moov atom not found")
 	if e.Code != ipc.CodeCorruptMedia {

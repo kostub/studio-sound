@@ -119,6 +119,115 @@ func writeRequest(t *testing.T, w io.Writer, v any) {
 	}
 }
 
+// TestMediaProbeRoundTrip exercises the media.probe IPC method end-to-end:
+// it builds the sidecar binary, sends a media.probe envelope with a real
+// test-asset path, and asserts a successful response with supported=true.
+//
+// Run with: go test -tags=integration ./internal/ipc/... -v -run TestMediaProbeRoundTrip
+func TestMediaProbeRoundTrip(t *testing.T) {
+	ffprobePath := os.Getenv("STUDIO_FFPROBE_PATH")
+	if ffprobePath == "" {
+		t.Skip("STUDIO_FFPROBE_PATH not set; skipping media.probe round-trip test")
+	}
+
+	binPath := buildSidecar(t)
+
+	// Locate test-assets relative to this source file.
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	// internal/ipc → internal → sidecar → repo root → test-assets
+	assetDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "test-assets")
+	mediaFile := filepath.Join(assetDir, "tiny-h264-aac-stereo.mp4")
+	if _, err := os.Stat(mediaFile); err != nil {
+		t.Skipf("test asset not found at %s: %v", mediaFile, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binPath, "serve")
+	cmd.Env = append(os.Environ(),
+		"STUDIO_LOG_FILE=",
+		"STUDIO_FFPROBE_PATH="+ffprobePath,
+	)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("failed to get stdin pipe: %v", err)
+	}
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("failed to get stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start sidecar: %v", err)
+	}
+	defer func() {
+		_ = stdin.Close()
+		_, _ = cmd.Process.Wait()
+	}()
+
+	reader := bufio.NewReader(stdoutPipe)
+
+	// Send media.probe request.
+	payload, err := json.Marshal(map[string]string{"path": mediaFile})
+	if err != nil {
+		t.Fatalf("failed to marshal probe payload: %v", err)
+	}
+	req := map[string]any{
+		"v":       1,
+		"id":      "test-probe-roundtrip",
+		"kind":    "request",
+		"method":  "media.probe",
+		"payload": json.RawMessage(payload),
+	}
+	writeRequest(t, stdin, req)
+
+	// Read the response — allow up to 15s for ffprobe to complete.
+	resp := readResponse(t, reader, 15*time.Second)
+
+	if resp.ID != "test-probe-roundtrip" {
+		t.Errorf("got id=%q, want test-probe-roundtrip", resp.ID)
+	}
+	if resp.Kind != "response" {
+		t.Errorf("got kind=%q, want response", resp.Kind)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: code=%q message=%q", resp.Error.Code, resp.Error.Message)
+	}
+	if resp.Result == nil {
+		t.Fatal("expected non-nil result in probe response")
+	}
+
+	// Decode the result and assert compatibility.supported=true.
+	var result struct {
+		Compatibility struct {
+			Supported bool `json:"supported"`
+		} `json:"compatibility"`
+	}
+	if err := json.Unmarshal(*resp.Result, &result); err != nil {
+		t.Fatalf("failed to decode probe result: %v", err)
+	}
+	if !result.Compatibility.Supported {
+		t.Errorf("expected compatibility.supported=true, got false; raw result: %s", string(*resp.Result))
+	}
+
+	// Shut down the sidecar cleanly.
+	shutdownReq := map[string]any{
+		"v":       1,
+		"id":      "test-probe-shutdown",
+		"kind":    "request",
+		"method":  "system.shutdown",
+		"payload": nil,
+	}
+	writeRequest(t, stdin, shutdownReq)
+	_ = stdin.Close()
+	readResponse(t, reader, 3*time.Second)
+}
+
 // TestE2EIntegration exercises the real sidecar binary end-to-end:
 //   - system.ping round-trip
 //   - system.echo round-trip

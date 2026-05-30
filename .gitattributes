@@ -4,3 +4,8 @@
 # Explicitly handle generated files to ensure they never use CRLF in CI
 **/generated/** text eol=lf
 **/generated.rs text eol=lf
+
+# Binary test-asset fixtures — never apply line-ending conversion
+test-assets/*.mp4 binary
+test-assets/*.mov binary
+test-assets/*.webm binary
