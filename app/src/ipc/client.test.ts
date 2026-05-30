@@ -54,6 +54,9 @@ describe('probe', () => {
     });
     const r = await probe('/x');
     expect(invoke).toHaveBeenCalledWith('media_probe', { path: '/x' });
+    expect(r.id).toBe('A');
+    expect(r.path).toBe('/x');
+    expect(r.audio).toBeNull();
     expect(r.compatibility.supported).toBe(false);
   });
 

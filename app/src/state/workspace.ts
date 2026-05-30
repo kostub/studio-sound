@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { probe } from '../ipc/client';
 import type { ProbeResult } from '../ipc/generated/media.probe';
 import type { IpcError } from '../ipc/client';
@@ -41,14 +42,20 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     set({ status: 'PROBING' });
     try {
       const result = await probe(path);
-      set({ status: 'READY', result, error: undefined });
+      // Guard against a stale resolution: if another load/replace changed the
+      // active path while this probe was in flight, drop the result.
+      if (get().path === path) {
+        set({ status: 'READY', result, error: undefined });
+      }
     } catch (e) {
-      set({ status: 'ERROR', error: e as IpcError, result: undefined });
+      if (get().path === path) {
+        set({ status: 'ERROR', error: e as IpcError, result: undefined });
+      }
     }
   },
 
   async replaceFile(path: string) {
-    set({ status: 'REMOVED', result: undefined, error: undefined });
+    set({ status: 'REMOVED', path, result: undefined, error: undefined });
     await get().loadFile(path);
   },
 
@@ -62,9 +69,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     set({ status: 'RETRYING', error: undefined });
     try {
       const result = await probe(path);
-      set({ status: 'READY', result, error: undefined });
+      if (get().path === path) {
+        set({ status: 'READY', result, error: undefined });
+      }
     } catch (e) {
-      set({ status: 'ERROR', error: e as IpcError });
+      if (get().path === path) {
+        set({ status: 'ERROR', error: e as IpcError });
+      }
     }
   },
 }));
@@ -76,8 +87,7 @@ export function resetWorkspaceForTest(): void {
 
 // Selector helpers used by components.
 export const useWorkspaceStatus = (): WorkspaceStatus => useWorkspace((s) => s.status);
-export const useWorkspaceFile = (): {
-  path: string | undefined;
-  result: ProbeResult | undefined;
-  error: IpcError | undefined;
-} => useWorkspace((s) => ({ path: s.path, result: s.result, error: s.error }));
+export const useWorkspaceFile = (): Pick<WorkspaceState, 'path' | 'result' | 'error'> =>
+  useWorkspace(
+    useShallow((s) => ({ path: s.path, result: s.result, error: s.error })),
+  );

@@ -17,8 +17,9 @@ use tauri::State;
 use crate::ipc::client::IpcClient;
 use crate::ipc::error::SerializableIpcError;
 
-/// Per-method timeout table.  All Phase 1 methods use modest timeouts; the
-/// fallback catches any future `ipc_call` with an unknown method.
+/// Per-method timeout table.  System methods use modest timeouts; `media.probe`
+/// (Phase 3) allows longer for ffprobe; the fallback catches any future
+/// `ipc_call` with an unknown method.
 fn default_timeout(method: &str) -> Duration {
     match method {
         "system.ping" => Duration::from_secs(2),

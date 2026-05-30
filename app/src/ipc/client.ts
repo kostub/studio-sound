@@ -91,7 +91,7 @@ export async function shutdown(): Promise<ShutdownResult> {
 /** Probes a media file and returns the canonical MediaProbeResult. */
 export async function probe(path: string): Promise<ProbeResult> {
   try {
-    return (await invoke('media_probe', { path })) as ProbeResult;
+    return await invoke<ProbeResult>('media_probe', { path });
   } catch (e) {
     throw toIpcError(e);
   }
