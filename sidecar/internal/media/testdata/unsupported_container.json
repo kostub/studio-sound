@@ -1,0 +1,27 @@
+{
+  "format": {
+    "format_name": "asf",
+    "format_long_name": "ASF (Advanced / Active Streaming Format)",
+    "duration": "5.0",
+    "size": "10240"
+  },
+  "streams": [
+    {
+      "index": 0,
+      "codec_type": "video",
+      "codec_name": "wmv2",
+      "width": 640,
+      "height": 480,
+      "r_frame_rate": "30/1",
+      "disposition": {"default": 1}
+    },
+    {
+      "index": 1,
+      "codec_type": "audio",
+      "codec_name": "wmav2",
+      "channels": 2,
+      "sample_rate": "44100",
+      "disposition": {"default": 1}
+    }
+  ]
+}
