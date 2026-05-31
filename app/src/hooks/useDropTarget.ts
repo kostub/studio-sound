@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 export interface UseDropTargetOptions {
-  onDrop: (path: string) => void;
-  onMultiFileIgnored?: () => void;
+  onPath: (path: string) => void;
 }
 
 export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean } {
@@ -11,7 +10,8 @@ export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean
   // Track the latest opts in a ref so the stable (subscribe-once) event listener
   // always calls the current callbacks instead of the closure captured at the
   // first render. Without this, callbacks that read component state (e.g. the
-  // `status` check in WorkspaceShell) would observe stale values on later drops.
+  // `status` check in WorkspaceShell that decides load-vs-replace) would observe
+  // stale values on later drops.
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
@@ -29,8 +29,10 @@ export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean
         } else if (t === 'drop') {
           setIsDragOver(false);
           const paths: string[] = payload?.paths ?? [];
-          if (paths.length > 1) optsRef.current.onMultiFileIgnored?.();
-          if (paths.length >= 1) optsRef.current.onDrop(paths[0] as string);
+          // Multi-file drops are ignored entirely in Phase 3.
+          if (paths.length === 1) {
+            optsRef.current.onPath(paths[0] as string);
+          }
         }
       })
       .then((u: () => void) => {

@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup, act, fireEvent } from '@testing-library/react';
 import type { ProbeResult } from '../ipc/generated/media.probe';
 
 // Handlers registered by useDropTarget stub
@@ -113,7 +113,7 @@ describe('WorkspaceShell', () => {
 
     expect(screen.getByText('tiny-no-audio.mp4')).toBeInTheDocument();
     expect(screen.getByTestId('status-dot').className).toMatch(/yellow|unsupported/);
-    expect(screen.getByText(/unsupported/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/unsupported/i).length).toBeGreaterThan(0);
   });
 
   it('[smoke] corrupt drop → ERROR with red dot, Retry visible', async () => {
@@ -147,5 +147,82 @@ describe('WorkspaceShell', () => {
     });
 
     expect(screen.getByText(/drop a video here/i)).toBeInTheDocument();
+  });
+
+  // ── ReplaceFileDialog wiring (item 67) ─────────────────────────────────────
+
+  it('calls loadFile when a drop arrives and workspace is EMPTY', async () => {
+    // Use a never-resolving probe so we can assert the PROBING state before it completes.
+    mockProbe.mockReturnValue(new Promise<ProbeResult>(() => {}));
+    useWorkspace.setState({ status: 'EMPTY', path: undefined, result: undefined, error: undefined });
+    render(<WorkspaceShell />);
+    await Promise.resolve();
+
+    await act(async () => {
+      handlers[0]?.({ payload: { type: 'drop', paths: ['/tmp/a.mp4'] } });
+    });
+
+    expect(useWorkspace.getState().status).toBe('PROBING');
+    expect(useWorkspace.getState().path).toBe('/tmp/a.mp4');
+  });
+
+  it('opens ReplaceFileDialog when a drop arrives and workspace is not EMPTY', async () => {
+    useWorkspace.setState({
+      status: 'READY',
+      path: '/tmp/old.mp4',
+      result: validResult,
+      error: undefined,
+    });
+    render(<WorkspaceShell />);
+    await Promise.resolve();
+
+    await act(async () => {
+      handlers[0]?.({ payload: { type: 'drop', paths: ['/tmp/new.mp4'] } });
+    });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/new\.mp4/)).toBeInTheDocument();
+  });
+
+  it('Replace button confirms replacement and closes the dialog', async () => {
+    mockProbe.mockResolvedValue(validResult);
+    useWorkspace.setState({
+      status: 'READY',
+      path: '/tmp/old.mp4',
+      result: validResult,
+      error: undefined,
+    });
+    render(<WorkspaceShell />);
+    await Promise.resolve();
+
+    await act(async () => {
+      handlers[0]?.({ payload: { type: 'drop', paths: ['/tmp/new.mp4'] } });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /replace/i }));
+    });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useWorkspace.getState().path).toBe('/tmp/new.mp4');
+  });
+
+  it('Cancel closes the dialog without changing state', async () => {
+    useWorkspace.setState({
+      status: 'READY',
+      path: '/tmp/old.mp4',
+      result: validResult,
+      error: undefined,
+    });
+    render(<WorkspaceShell />);
+    await Promise.resolve();
+
+    await act(async () => {
+      handlers[0]?.({ payload: { type: 'drop', paths: ['/tmp/new.mp4'] } });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useWorkspace.getState().path).toBe('/tmp/old.mp4');
   });
 });

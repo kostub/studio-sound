@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { useWorkspace, resetWorkspaceForTest } from '../state/workspace';
 import type { ProbeResult } from '../ipc/generated/media.probe';
 import { ActiveFileCard } from './ActiveFileCard';
@@ -32,7 +32,7 @@ describe('ActiveFileCard', () => {
           tracks: [{ index: 0, codec: 'aac', channels: 2, sampleRate: 48000, isDefault: true }],
         },
         compatibility: { supported: true, issues: [], warnings: [] },
-      } as ProbeResult,
+      } satisfies ProbeResult,
     });
     render(<ActiveFileCard />);
     expect(screen.getByText(/h264/)).toBeInTheDocument();
@@ -48,7 +48,7 @@ describe('ActiveFileCard', () => {
         container: { format: 'asf', longName: 'ASF' },
         audio: null,
         compatibility: { supported: false, issues: ['Unsupported container: asf'], warnings: [] },
-      } as ProbeResult,
+      } satisfies ProbeResult,
     });
     render(<ActiveFileCard />);
     expect(screen.getByTestId('status-dot').className).toMatch(/yellow|unsupported/);
@@ -78,5 +78,61 @@ describe('ActiveFileCard', () => {
     const btn = screen.getByRole('button', { name: /remove/i });
     btn.click();
     expect(useWorkspace.getState().status).toBe('EMPTY');
+  });
+
+  it('renders ErrorPanel when state is ERROR', () => {
+    useWorkspace.setState({
+      status: 'ERROR',
+      path: '/tmp/x.mp4',
+      error: { code: 'FFPROBE_FAILURE', message: 'failed' },
+    });
+    render(<ActiveFileCard />);
+    expect(screen.getByRole('region', { name: /error/i })).toBeInTheDocument();
+  });
+
+  it('renders UnsupportedPanel when READY but supported=false', () => {
+    useWorkspace.setState({
+      status: 'READY',
+      path: '/tmp/x.wmv',
+      result: {
+        id: 'A',
+        path: '/tmp/x.wmv',
+        filename: 'x.wmv',
+        sizeBytes: 1,
+        container: { format: 'asf', longName: 'ASF' },
+        audio: null,
+        compatibility: { supported: false, issues: ['Unsupported container: asf'], warnings: [] },
+      } satisfies ProbeResult,
+    });
+    render(<ActiveFileCard />);
+    expect(screen.getByRole('region', { name: /unsupported/i })).toBeInTheDocument();
+  });
+
+  it('opens DiagnosticsDrawer when Details button is clicked', () => {
+    useWorkspace.setState({
+      status: 'READY',
+      path: '/tmp/x.mp4',
+      result: {
+        id: 'A',
+        path: '/tmp/x.mp4',
+        filename: 'x.mp4',
+        sizeBytes: 1024,
+        durationSeconds: 5,
+        container: { format: 'mp4', longName: 'MP4' },
+        audio: {
+          codec: 'aac',
+          channels: 2,
+          sampleRate: 48000,
+          trackIndex: 0,
+          trackCount: 1,
+          tracks: [{ index: 0, codec: 'aac', channels: 2, sampleRate: 48000, isDefault: true }],
+        },
+        compatibility: { supported: true, issues: [], warnings: [] },
+      } satisfies ProbeResult,
+    });
+    render(<ActiveFileCard />);
+    expect(screen.queryByRole('dialog', { name: /diagnostics/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /details/i }));
+    expect(screen.getByRole('dialog', { name: /diagnostics/i })).toBeInTheDocument();
   });
 });
