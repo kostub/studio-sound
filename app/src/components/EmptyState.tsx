@@ -1,7 +1,6 @@
 import type { JSX } from 'react';
 
 export interface EmptyStateProps {
-  onDrop: (path: string) => void;
   isDragOver: boolean;
 }
 

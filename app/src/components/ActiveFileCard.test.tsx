@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { useWorkspace, resetWorkspaceForTest } from '../state/workspace';
+import type { ProbeResult } from '../ipc/generated/media.probe';
 import { ActiveFileCard } from './ActiveFileCard';
 
 vi.mock('../ipc/client', () => ({ probe: vi.fn() }));
@@ -31,7 +32,7 @@ describe('ActiveFileCard', () => {
           tracks: [{ index: 0, codec: 'aac', channels: 2, sampleRate: 48000, isDefault: true }],
         },
         compatibility: { supported: true, issues: [], warnings: [] },
-      } as any,
+      } as ProbeResult,
     });
     render(<ActiveFileCard />);
     expect(screen.getByText(/h264/)).toBeInTheDocument();
@@ -47,7 +48,7 @@ describe('ActiveFileCard', () => {
         container: { format: 'asf', longName: 'ASF' },
         audio: null,
         compatibility: { supported: false, issues: ['Unsupported container: asf'], warnings: [] },
-      } as any,
+      } as ProbeResult,
     });
     render(<ActiveFileCard />);
     expect(screen.getByTestId('status-dot').className).toMatch(/yellow|unsupported/);

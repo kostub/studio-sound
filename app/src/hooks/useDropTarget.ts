@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 export interface UseDropTargetOptions {
@@ -8,6 +8,12 @@ export interface UseDropTargetOptions {
 
 export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean } {
   const [isDragOver, setIsDragOver] = useState(false);
+  // Track the latest opts in a ref so the stable (subscribe-once) event listener
+  // always calls the current callbacks instead of the closure captured at the
+  // first render. Without this, callbacks that read component state (e.g. the
+  // `status` check in WorkspaceShell) would observe stale values on later drops.
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -23,8 +29,8 @@ export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean
         } else if (t === 'drop') {
           setIsDragOver(false);
           const paths: string[] = payload?.paths ?? [];
-          if (paths.length > 1) opts.onMultiFileIgnored?.();
-          if (paths.length >= 1) opts.onDrop(paths[0] as string);
+          if (paths.length > 1) optsRef.current.onMultiFileIgnored?.();
+          if (paths.length >= 1) optsRef.current.onDrop(paths[0] as string);
         }
       })
       .then((u: () => void) => {
@@ -38,9 +44,6 @@ export function useDropTarget(opts: UseDropTargetOptions): { isDragOver: boolean
       active = false;
       if (unsub) unsub();
     };
-    // opts is intentionally excluded from deps to avoid re-subscribing on every render.
-    // Callers should memoize callbacks if stable identity matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { isDragOver };

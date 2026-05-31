@@ -5,10 +5,11 @@ import { render, screen, cleanup, act } from '@testing-library/react';
 import type { ProbeResult } from '../ipc/generated/media.probe';
 
 // Handlers registered by useDropTarget stub
-const handlers: Array<(e: any) => void> = [];
+type DragDropHandler = (e: { payload?: { type?: string; paths?: string[] } }) => void;
+const handlers: DragDropHandler[] = [];
 vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({
-    onDragDropEvent: (cb: (e: any) => void) => {
+    onDragDropEvent: (cb: DragDropHandler) => {
       handlers.push(cb);
       return Promise.resolve(() => {
         const i = handlers.indexOf(cb);

@@ -21,7 +21,7 @@ export function WorkspaceShell(): JSX.Element {
       <header className="workspace-shell__header">Studio Sound</header>
       <main className="workspace-shell__main">
         {status === 'EMPTY' ? (
-          <EmptyState onDrop={loadFile} isDragOver={isDragOver} />
+          <EmptyState isDragOver={isDragOver} />
         ) : (
           <ActiveFileCard />
         )}

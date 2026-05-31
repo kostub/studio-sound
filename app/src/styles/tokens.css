@@ -1,3 +1,9 @@
+/*
+ * Design tokens (PRD §14.4). These custom properties are defined now but not
+ * yet consumed by component styles — visual polish (status-dot, card layout,
+ * motion) is deferred to a later Phase 3 PR. Kept here so component stylesheets
+ * can reference them when that work lands.
+ */
 :root {
   /* radius */
   --radius-card: 16px;

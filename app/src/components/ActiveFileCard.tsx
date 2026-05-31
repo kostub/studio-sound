@@ -12,6 +12,8 @@ function dotClassFor(status: string, supported?: boolean): string {
     case 'ERROR':
       return 'status-dot red';
     default:
+      // EMPTY/REMOVED never reach this card (REMOVED is a transient state in
+      // replaceFile, synchronously overwritten by loadFile before render).
       return 'status-dot gray';
   }
 }
@@ -25,7 +27,13 @@ function basename(path?: string): string {
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+// Drop trailing zeros so common frame rates render as "30fps", not "30.00fps".
+function formatFps(fps: number): string {
+  return `${parseFloat(fps.toFixed(2))}fps`;
 }
 
 function formatDuration(s?: number): string {
@@ -48,6 +56,7 @@ function statusLabel(status: string, supported?: boolean): string {
     case 'ERROR':
       return 'Error';
     default:
+      // EMPTY/REMOVED never reach this card (see dotClassFor).
       return '';
   }
 }
@@ -81,7 +90,7 @@ export function ActiveFileCard(): JSX.Element {
         <dl className="active-file-card__meta">
           <div>
             <dt>Duration</dt>
-            <dd>{formatDuration(result.durationSeconds ?? undefined)}</dd>
+            <dd>{formatDuration(result.durationSeconds)}</dd>
           </div>
           <div>
             <dt>Size</dt>
@@ -96,7 +105,7 @@ export function ActiveFileCard(): JSX.Element {
               <dt>Video</dt>
               <dd>
                 {result.video.codec} {result.video.width}×{result.video.height} @{' '}
-                {result.video.fps.toFixed(2)}fps
+                {formatFps(result.video.fps)}
               </dd>
             </div>
           )}
