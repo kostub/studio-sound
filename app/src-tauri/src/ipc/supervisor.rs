@@ -16,7 +16,7 @@
 //! Phase 1 plan ("Killing the sidecar process externally causes the UI to
 //! surface a clean error and the app to respawn it on the next call").
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +67,23 @@ fn bundled_ffprobe_filename() -> &'static str {
     { "ffprobe.exe" }
     #[cfg(not(windows))]
     { "ffprobe" }
+}
+
+/// Resolve the bundled ffprobe inside `exe_dir` (the directory holding the
+/// running executable), returning [`IpcError`] `FFPROBE_MISSING` when the
+/// binary isn't present. Kept separate from [`Supervisor::spawn`] — and free
+/// of any `AppHandle`/env dependency — so the missing-binary path is
+/// unit-testable.
+fn resolve_bundled_ffprobe(exe_dir: &Path) -> Result<PathBuf, IpcError> {
+    let ffprobe_path = exe_dir.join(bundled_ffprobe_filename());
+    if !ffprobe_path.exists() {
+        return Err(IpcError::Other {
+            code: "FFPROBE_MISSING".into(),
+            message: format!("bundled ffprobe not found at {}", ffprobe_path.display()),
+            details: None,
+        });
+    }
+    Ok(ffprobe_path)
 }
 
 /// Information needed to spawn (or respawn) the sidecar.
@@ -147,21 +164,15 @@ impl Supervisor {
         // `tauri dev` (target/<profile>/) and packaged builds
         // (e.g. *.app/Contents/MacOS/) — never under the resource dir. Resolve
         // it there and pass the path to the Go sidecar via STUDIO_FFPROBE_PATH.
-        let ffprobe_path = std::env::current_exe()
+        let exe_dir = std::env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|dir| dir.join(bundled_ffprobe_filename())))
+            .and_then(|exe| exe.parent().map(Path::to_path_buf))
             .ok_or_else(|| IpcError::Other {
                 code: "FFPROBE_MISSING".into(),
                 message: "failed to resolve executable directory for bundled ffprobe".into(),
                 details: None,
             })?;
-        if !ffprobe_path.exists() {
-            return Err(IpcError::Other {
-                code: "FFPROBE_MISSING".into(),
-                message: format!("bundled ffprobe not found at {}", ffprobe_path.display()),
-                details: None,
-            });
-        }
+        let ffprobe_path = resolve_bundled_ffprobe(&exe_dir)?;
 
         let (tx, _) = broadcast::channel(CHANNEL_CAPACITY);
         let inner = Arc::new(Inner {
@@ -470,6 +481,44 @@ mod tests {
         assert_eq!(name, "ffprobe.exe");
         #[cfg(not(windows))]
         assert_eq!(name, "ffprobe");
+    }
+
+    /// Unique empty directory under the system temp dir for ffprobe-resolver
+    /// tests. Dependency-free (no `tempfile` dev-dep); caller removes it.
+    fn unique_temp_dir(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("studio-ffprobe-{tag}-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
+
+    #[test]
+    fn resolve_bundled_ffprobe_reports_missing_binary() {
+        let dir = unique_temp_dir("missing");
+        let err = resolve_bundled_ffprobe(&dir).expect_err("empty dir must error");
+        match err {
+            IpcError::Other { code, message, .. } => {
+                assert_eq!(code, "FFPROBE_MISSING");
+                assert!(
+                    message.contains(bundled_ffprobe_filename()),
+                    "message should name the missing file: {message}"
+                );
+            }
+            other => panic!("expected IpcError::Other, got {other:?}"),
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_bundled_ffprobe_returns_path_when_present() {
+        let dir = unique_temp_dir("present");
+        let expected = dir.join(bundled_ffprobe_filename());
+        std::fs::write(&expected, b"fake ffprobe").expect("write fake ffprobe");
+        let got = resolve_bundled_ffprobe(&dir).expect("present binary resolves");
+        assert_eq!(got, expected);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Verify that `send` serialises an envelope and appends exactly one `\n`.

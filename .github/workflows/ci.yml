@@ -68,11 +68,14 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
-            ls -l app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
-            test -s app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe || { echo "no Windows ffprobe artifact"; exit 1; }
+            artifact=app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+          elif [ "$RUNNER_ARCH" = "ARM64" ]; then
+            artifact=app/src-tauri/binaries/ffprobe-aarch64-apple-darwin
           else
-            echo "No macOS ffprobe in lock (BtbN does not publish macOS builds); skipping artifact check."
+            artifact=app/src-tauri/binaries/ffprobe-x86_64-apple-darwin
           fi
+          ls -l "$artifact"
+          test -s "$artifact" || { echo "no ffprobe artifact at $artifact"; exit 1; }
 
       - name: Generate schemas
         run: npm run gen:schemas
@@ -91,6 +94,9 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Test (Rust)
+        run: cargo test --manifest-path app/src-tauri/Cargo.toml --lib
 
       - name: Integration tests (sidecar E2E)
         env:
