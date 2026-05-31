@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 
 import { App } from './App';
 import './styles.css';
+import './styles/tokens.css';
 
 export function renderApp(): void {
   const root = document.getElementById('root');

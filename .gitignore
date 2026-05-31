@@ -15,3 +15,7 @@ app/src-tauri/binaries/*
 .vscode/
 .env
 .env.*
+
+# plan-to-pr orchestrator ephemeral state
+docs/plans/*.lock
+docs/plans/*.state.json
