@@ -8,9 +8,9 @@
   "scripts": {
     "setup": "node scripts/check-prereqs.mjs && npm install && npm run ffprobe:fetch && npm run sidecar:build",
     "ffprobe:fetch": "node scripts/fetch-ffprobe.mjs",
-    "start": "npm run sidecar:build && npm run dev -w app",
+    "start": "npm run ffprobe:fetch && npm run sidecar:build && npm run dev -w app",
     "dev": "npm start",
-    "build": "npm run sidecar:build && npm run build -w app",
+    "build": "npm run ffprobe:fetch && npm run sidecar:build && npm run build -w app",
     "lint": "npm run lint -w app && npm run sidecar:lint",
     "format": "prettier --write . && npm run sidecar:fmt",
     "test": "npm run test -w app && npm run sidecar:test",

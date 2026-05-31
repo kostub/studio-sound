@@ -1,6 +1,6 @@
 {
   "version": "7.1",
-  "source": "https://github.com/BtbN/FFmpeg-Builds (GPL static builds, release tag: latest)",
+  "source": "Windows from https://github.com/BtbN/FFmpeg-Builds (GPL static builds, release tag: latest); macOS from https://www.osxexperts.net (GPL static builds, FFmpeg 7.1).",
   "note": "Binaries are checked in (gzip-compressed) under third_party/ffprobe/. Regenerate with scripts/update-ffprobe-lock.mjs.",
   "platforms": {
     "windows-amd64": {
@@ -9,6 +9,20 @@
       "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip",
       "sha256": "bc0726a3547c0c136142639057650d05fa3d8cb50f8f4140a11f5b8b845c5658",
       "innerPath": "ffmpeg-n7.1-latest-win64-gpl-7.1/bin/ffprobe.exe"
+    },
+    "macos-arm64": {
+      "bundled": "third_party/ffprobe/ffprobe-aarch64-apple-darwin.gz",
+      "binarySha256": "df2684842eca145bd72f4724ce9cecbf38558a4d64b2aef7846680f877702baa",
+      "url": "https://www.osxexperts.net/ffprobe71arm.zip",
+      "sha256": "156a2c4da546e7d86877dd204df026eeda79aee8a80af8f04cd00f9b02687aa0",
+      "innerPath": "ffprobe"
+    },
+    "macos-amd64": {
+      "bundled": "third_party/ffprobe/ffprobe-x86_64-apple-darwin.gz",
+      "binarySha256": "ce5414269f0efa1e88b5e23b57f801d5b9a40be554716544936e0332b4601a62",
+      "url": "https://www.osxexperts.net/ffprobe71intel.zip",
+      "sha256": "dc42e20dbb7fa5c334dd2bd822a6f90e4c838b4fa74f14523589e6ce8361c7c4",
+      "innerPath": "ffprobe"
     }
   }
 }
