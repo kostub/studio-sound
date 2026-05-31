@@ -76,7 +76,7 @@ fn bundled_ffprobe_filename() -> &'static str {
 /// unit-testable.
 fn resolve_bundled_ffprobe(exe_dir: &Path) -> Result<PathBuf, IpcError> {
     let ffprobe_path = exe_dir.join(bundled_ffprobe_filename());
-    if !ffprobe_path.exists() {
+    if !ffprobe_path.is_file() {
         return Err(IpcError::Other {
             code: "FFPROBE_MISSING".into(),
             message: format!("bundled ffprobe not found at {}", ffprobe_path.display()),
@@ -166,6 +166,7 @@ impl Supervisor {
         // it there and pass the path to the Go sidecar via STUDIO_FFPROBE_PATH.
         let exe_dir = std::env::current_exe()
             .ok()
+            .and_then(|exe| std::fs::canonicalize(&exe).ok().or(Some(exe)))
             .and_then(|exe| exe.parent().map(Path::to_path_buf))
             .ok_or_else(|| IpcError::Other {
                 code: "FFPROBE_MISSING".into(),

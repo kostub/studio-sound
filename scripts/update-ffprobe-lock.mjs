@@ -110,12 +110,16 @@ for (const [key, p] of Object.entries(PLATFORMS)) {
 
   const tmpExe = join(tmpdir(), `ffprobe-${key}-${process.pid}`);
   console.log(`update-ffprobe-lock: extracting ${p.innerPath}`);
-  await extractInner(cachedArchive, p.url, p.innerPath, tmpExe);
+  let binarySha256;
+  try {
+    await extractInner(cachedArchive, p.url, p.innerPath, tmpExe);
 
-  const binarySha256 = await sha256OfFile(tmpExe);
-  console.log(`update-ffprobe-lock: writing ${bundledRel}`);
-  await gzipFile(tmpExe, bundledPath);
-  rmSync(tmpExe, { force: true });
+    binarySha256 = await sha256OfFile(tmpExe);
+    console.log(`update-ffprobe-lock: writing ${bundledRel}`);
+    await gzipFile(tmpExe, bundledPath);
+  } finally {
+    rmSync(tmpExe, { force: true });
+  }
 
   // The GPL builds ship FFmpeg's license; extract it when the archive
   // carries one (BtbN does; the osxexperts single-file zips do not).
