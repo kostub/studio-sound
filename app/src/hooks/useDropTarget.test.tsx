@@ -21,20 +21,19 @@ import { useDropTarget } from './useDropTarget';
 beforeEach(() => { handlers.length = 0; });
 
 describe('useDropTarget', () => {
-  it('emits the dropped path via onDrop', async () => {
-    const onDrop = vi.fn();
-    const { result } = renderHook(() => useDropTarget({ onDrop }));
+  it('calls onPath with the dropped file path for single-file drops', async () => {
+    const onPath = vi.fn();
+    renderHook(() => useDropTarget({ onPath }));
     // Wait for the subscription to register.
     await Promise.resolve();
     await act(async () => {
       handlers[0]?.({ payload: { type: 'drop', paths: ['/a/b.mp4'] } });
     });
-    expect(onDrop).toHaveBeenCalledWith('/a/b.mp4');
-    expect(result.current.isDragOver).toBe(false);
+    expect(onPath).toHaveBeenCalledWith('/a/b.mp4');
   });
 
   it('sets isDragOver=true on dragenter', async () => {
-    const { result } = renderHook(() => useDropTarget({ onDrop: () => {} }));
+    const { result } = renderHook(() => useDropTarget({ onPath: () => {} }));
     await Promise.resolve();
     await act(async () => {
       handlers[0]?.({ payload: { type: 'enter' } });
@@ -43,7 +42,7 @@ describe('useDropTarget', () => {
   });
 
   it('resets isDragOver=false on dragleave', async () => {
-    const { result } = renderHook(() => useDropTarget({ onDrop: () => {} }));
+    const { result } = renderHook(() => useDropTarget({ onPath: () => {} }));
     await Promise.resolve();
     await act(async () => {
       handlers[0]?.({ payload: { type: 'enter' } });
@@ -56,7 +55,7 @@ describe('useDropTarget', () => {
   });
 
   it('resets isDragOver=false on cancel', async () => {
-    const { result } = renderHook(() => useDropTarget({ onDrop: () => {} }));
+    const { result } = renderHook(() => useDropTarget({ onPath: () => {} }));
     await Promise.resolve();
     await act(async () => {
       handlers[0]?.({ payload: { type: 'enter' } });
@@ -68,15 +67,13 @@ describe('useDropTarget', () => {
     expect(result.current.isDragOver).toBe(false);
   });
 
-  it('ignores multi-file drops beyond the first path', async () => {
-    const onDrop = vi.fn();
-    const onIgnored = vi.fn();
-    renderHook(() => useDropTarget({ onDrop, onMultiFileIgnored: onIgnored }));
+  it('does not call onPath for multi-file drops', async () => {
+    const onPath = vi.fn();
+    renderHook(() => useDropTarget({ onPath }));
     await Promise.resolve();
     await act(async () => {
       handlers[0]?.({ payload: { type: 'drop', paths: ['/a.mp4', '/b.mp4'] } });
     });
-    expect(onDrop).toHaveBeenCalledWith('/a.mp4');
-    expect(onIgnored).toHaveBeenCalled();
+    expect(onPath).not.toHaveBeenCalled();
   });
 });

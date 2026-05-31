@@ -1,5 +1,10 @@
 import type { JSX } from 'react';
+import { useState } from 'react';
 import { useWorkspace } from '../state/workspace';
+import { basename } from '../utils/path';
+import { DiagnosticsDrawer } from './DiagnosticsDrawer';
+import { ErrorPanel } from './ErrorPanel';
+import { UnsupportedPanel } from './UnsupportedPanel';
 
 function dotClassFor(status: string, supported?: boolean): string {
   switch (status) {
@@ -16,12 +21,6 @@ function dotClassFor(status: string, supported?: boolean): string {
       // replaceFile, synchronously overwritten by loadFile before render).
       return 'status-dot gray';
   }
-}
-
-function basename(path?: string): string {
-  if (!path) return '';
-  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  return i >= 0 ? path.slice(i + 1) : path;
 }
 
 function formatBytes(n: number): string {
@@ -65,70 +64,93 @@ export function ActiveFileCard(): JSX.Element {
   const status = useWorkspace((s) => s.status);
   const path = useWorkspace((s) => s.path);
   const result = useWorkspace((s) => s.result);
+  const error = useWorkspace((s) => s.error);
   const clearFile = useWorkspace((s) => s.clearFile);
   const retry = useWorkspace((s) => s.retry);
+  const [diagOpen, setDiagOpen] = useState(false);
 
   const supported = result?.compatibility?.supported;
+  const showError = status === 'ERROR' && error;
+  const showUnsupported = status === 'READY' && result && !result.compatibility.supported;
 
   return (
-    <section className="active-file-card" aria-label="Active file">
-      <div className="active-file-card__header">
-        <div className="active-file-card__thumb" aria-hidden="true">
-          🎬
-        </div>
-        <div className="active-file-card__title">
-          <div className="active-file-card__filename">{basename(path)}</div>
-          <div className="active-file-card__status">
-            <span data-testid="status-dot" className={dotClassFor(status, supported)} />
-            <span className="active-file-card__status-label">
-              {statusLabel(status, supported)}
-            </span>
+    <>
+      <section className="active-file-card" aria-label="Active file">
+        <div className="active-file-card__header">
+          <div className="active-file-card__thumb" aria-hidden="true">
+            🎬
           </div>
-        </div>
-      </div>
-      {result && (
-        <dl className="active-file-card__meta">
-          <div>
-            <dt>Duration</dt>
-            <dd>{formatDuration(result.durationSeconds)}</dd>
-          </div>
-          <div>
-            <dt>Size</dt>
-            <dd>{formatBytes(result.sizeBytes)}</dd>
-          </div>
-          <div>
-            <dt>Container</dt>
-            <dd>{result.container.format}</dd>
-          </div>
-          {result.video && (
-            <div>
-              <dt>Video</dt>
-              <dd>
-                {result.video.codec} {result.video.width}×{result.video.height} @{' '}
-                {formatFps(result.video.fps)}
-              </dd>
+          <div className="active-file-card__title">
+            <div className="active-file-card__filename">{basename(path)}</div>
+            <div className="active-file-card__status">
+              <span data-testid="status-dot" className={dotClassFor(status, supported)} />
+              <span className="active-file-card__status-label">
+                {statusLabel(status, supported)}
+              </span>
             </div>
-          )}
-          {result.audio && (
+          </div>
+        </div>
+        {result && !showError && !showUnsupported && (
+          <dl className="active-file-card__meta">
             <div>
-              <dt>Audio</dt>
-              <dd>
-                {result.audio.codec} {result.audio.channels}ch {result.audio.sampleRate}Hz
-              </dd>
+              <dt>Duration</dt>
+              <dd>{formatDuration(result.durationSeconds)}</dd>
             </div>
-          )}
-        </dl>
-      )}
-      <div className="active-file-card__actions">
-        {status === 'ERROR' && (
-          <button type="button" onClick={() => void retry()}>
-            Retry
-          </button>
+            <div>
+              <dt>Size</dt>
+              <dd>{formatBytes(result.sizeBytes)}</dd>
+            </div>
+            <div>
+              <dt>Container</dt>
+              <dd>{result.container.format}</dd>
+            </div>
+            {result.video && (
+              <div>
+                <dt>Video</dt>
+                <dd>
+                  {result.video.codec} {result.video.width}×{result.video.height} @{' '}
+                  {formatFps(result.video.fps)}
+                </dd>
+              </div>
+            )}
+            {result.audio && (
+              <div>
+                <dt>Audio</dt>
+                <dd>
+                  {result.audio.codec} {result.audio.channels}ch {result.audio.sampleRate}Hz
+                </dd>
+              </div>
+            )}
+          </dl>
         )}
-        <button type="button" onClick={clearFile}>
-          Remove
-        </button>
-      </div>
-    </section>
+        {showError && (
+          <ErrorPanel
+            error={error}
+            onRetry={() => void retry()}
+            onOpenDetails={() => setDiagOpen(true)}
+          />
+        )}
+        {showUnsupported && (
+          <UnsupportedPanel
+            issues={result.compatibility.issues}
+            onReplace={clearFile}
+            onOpenDetails={() => setDiagOpen(true)}
+          />
+        )}
+        <div className="active-file-card__actions">
+          {result && !showError && !showUnsupported && (
+            <button type="button" onClick={() => setDiagOpen(true)} aria-label="Details">
+              Details
+            </button>
+          )}
+          <button type="button" onClick={clearFile}>
+            Remove
+          </button>
+        </div>
+      </section>
+      {result && (
+        <DiagnosticsDrawer open={diagOpen} onClose={() => setDiagOpen(false)} result={result} />
+      )}
+    </>
   );
 }
