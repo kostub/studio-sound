@@ -138,7 +138,12 @@ a button to open the log directory.
 
 ## Bundled binaries
 
-This application bundles `ffprobe` from FFmpeg under the LGPL v2.1 (or later).
-The full license text is at [`third_party/LICENSE.ffmpeg-lgpl.txt`](third_party/LICENSE.ffmpeg-lgpl.txt).
-Source builds: <https://github.com/BtbN/FFmpeg-Builds> (LGPL releases).
+This application bundles a single `ffprobe` binary from FFmpeg under the GPL (see the bundled
+license text), invoked as a separate child process at arm's length. We use BtbN's GPL **static**
+build because it is one self-contained executable; the LGPL builds are dynamically linked and ship
+~90 MB of `av*`/`sw*` DLLs, which a single-file bundle cannot represent.
+The full license text is at [`third_party/ffprobe/LICENSE.ffmpeg-gpl.txt`](third_party/ffprobe/LICENSE.ffmpeg-gpl.txt).
+The binary is checked into the repo (gzip-compressed) under `third_party/ffprobe/`; `npm run setup`
+decompresses and SHA-256-verifies it offline (no network). Refresh it with `node scripts/update-ffprobe-lock.mjs`.
+Source builds: <https://github.com/BtbN/FFmpeg-Builds> (GPL releases).
 Version and SHA-256 hashes are pinned in [`third_party/ffprobe.lock.json`](third_party/ffprobe.lock.json).

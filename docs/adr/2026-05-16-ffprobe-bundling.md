@@ -1,6 +1,6 @@
 # ADR: Bundling ffprobe (LGPL build)
 
-**Status:** Accepted
+**Status:** Accepted — amended 2026-05-31 (see Update below)
 **Date:** 2026-05-16
 
 ## Context
@@ -33,3 +33,18 @@ Phase 3 ships a development / unsigned Tauri build. macOS Gatekeeper quarantine 
 - Bundle grows by ~20 MB per platform for Windows (~60 MB total once macOS binaries are sourced).
 - Lock-file bumps require manual SHA recomputation and a CI test pass.
 - We must reproduce the LGPL text inside the bundle (`third_party/LICENSE.ffmpeg-lgpl.txt`) and reference it in README. An in-app license screen is deferred.
+
+## Update — 2026-05-31
+
+The original "fetch at setup/CI time" approach broke and was superseded:
+
+- **Ephemeral URLs.** The lock pinned a BtbN `autobuild-<timestamp>` release. BtbN garbage-collects those, so the URL began returning HTTP 404 and CI's `Fetch ffprobe` step failed.
+- **LGPL builds are not single-file.** BtbN's `win64-lgpl` build is *dynamically* linked: it ships ffprobe.exe (~360 KB) plus ~90 MB of `av*`/`sw*` DLLs (LGPL requires the ability to relink). Extracting only `ffprobe.exe` — as the original script did — would have produced a non-runnable binary even if the URL had resolved.
+
+**Revised decision:**
+
+- Source ffprobe from BtbN's **GPL static** build line via the stable `latest` release tag (one self-contained executable, no DLLs). ffprobe is invoked as a separate process at arm's length, so the GPL binary does not impose GPL terms on the app.
+- **Check the binary into the repo**, gzip-compressed, under `third_party/ffprobe/` (e.g. `ffprobe-x86_64-pc-windows-msvc.exe.gz`, ~50 MB — under the 100 MB GitHub file limit). CI decompresses and SHA-256-verifies it offline; no network fetch.
+- Regenerate with `scripts/update-ffprobe-lock.mjs`, which downloads, extracts, gzips, and writes all checksums in code.
+- License text is now `third_party/ffprobe/LICENSE.ffmpeg-gpl.txt`; `third_party/LICENSE.ffmpeg-lgpl.txt` is removed.
+- macOS x64/arm64 remain deferred (only `windows-amd64` is bundled).

@@ -34,6 +34,7 @@ pub fn run() {
             commands::ipc_echo,
             commands::ipc_shutdown,
             commands::open_logs_folder,
+            commands::media_probe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Studio Sound App");
