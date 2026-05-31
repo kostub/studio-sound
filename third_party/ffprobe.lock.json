@@ -1,11 +1,14 @@
 {
   "version": "7.1",
-  "source": "https://github.com/BtbN/FFmpeg-Builds/releases",
+  "source": "https://github.com/BtbN/FFmpeg-Builds (GPL static builds, release tag: latest)",
+  "note": "Binaries are checked in (gzip-compressed) under third_party/ffprobe/. Regenerate with scripts/update-ffprobe-lock.mjs.",
   "platforms": {
     "windows-amd64": {
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-05-16-13-15/ffmpeg-n7.1.4-win64-lgpl-7.1.zip",
-      "sha256": "2deea6667484a008333a3cb3cbac3acdbabd803a1abcaffe818cb07737b289a1",
-      "innerPath": "ffmpeg-n7.1.4-win64-lgpl-7.1/bin/ffprobe.exe"
+      "bundled": "third_party/ffprobe/ffprobe-x86_64-pc-windows-msvc.exe.gz",
+      "binarySha256": "fcea41c9f08deb648062278754749e8ea0b96ead5d3a8f3187ceec42db745e9c",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip",
+      "sha256": "bc0726a3547c0c136142639057650d05fa3d8cb50f8f4140a11f5b8b845c5658",
+      "innerPath": "ffmpeg-n7.1-latest-win64-gpl-7.1/bin/ffprobe.exe"
     }
   }
 }

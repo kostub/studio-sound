@@ -19,5 +19,7 @@ only to development / sideload installs.
 ## "FFPROBE_MISSING" on a clean checkout
 
 Run `npm run ffprobe:fetch` (or the full `npm run setup`). The fetcher reads
-`third_party/ffprobe.lock.json`, downloads + verifies the per-platform
-archive, and extracts ffprobe into `app/src-tauri/binaries/`.
+`third_party/ffprobe.lock.json`, decompresses the per-platform `ffprobe`
+checked into `third_party/ffprobe/` into `app/src-tauri/binaries/`, and
+verifies its SHA-256 (no network). Platforms without a checked-in binary
+fall back to downloading + verifying the upstream archive.
