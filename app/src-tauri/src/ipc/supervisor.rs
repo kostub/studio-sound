@@ -44,8 +44,8 @@ const MAX_RESTART_ATTEMPTS: u32 = 8;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(200);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
-/// Returns the platform-specific filename (no directory) for the bundled
-/// ffprobe binary, matching the Tauri `externalBin` naming convention.
+/// Reject targets we don't ship a bundled ffprobe for, so the missing
+/// binary surfaces at compile time rather than as a runtime FFPROBE_MISSING.
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "x86_64"),
     all(target_os = "macos", target_arch = "aarch64"),
@@ -53,19 +53,20 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
     all(target_os = "linux", target_arch = "x86_64"),
 )))]
 compile_error!(
-    "bundled_ffprobe_basename: unsupported target — add a basename here and \
-     a matching entry in third_party/ffprobe.lock.json + scripts/fetch-ffprobe.mjs"
+    "bundled ffprobe: unsupported target — add an entry in \
+     third_party/ffprobe.lock.json + scripts/update-ffprobe-lock.mjs and a \
+     matching basename in scripts/lib/ffprobe-archive.mjs"
 );
 
-pub(crate) fn bundled_ffprobe_basename() -> &'static str {
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    { "ffprobe-x86_64-apple-darwin" }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    { "ffprobe-aarch64-apple-darwin" }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    { "ffprobe-x86_64-pc-windows-msvc.exe" }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    { "ffprobe-x86_64-unknown-linux-gnu" }
+/// Filename of the bundled ffprobe as Tauri places it next to the main
+/// executable: the `externalBin` target-triple suffix is stripped, and
+/// Windows keeps the `.exe` extension. It is *not* placed under the resource
+/// dir, so [`Supervisor::spawn`] resolves it relative to the running binary.
+fn bundled_ffprobe_filename() -> &'static str {
+    #[cfg(windows)]
+    { "ffprobe.exe" }
+    #[cfg(not(windows))]
+    { "ffprobe" }
 }
 
 /// Information needed to spawn (or respawn) the sidecar.
@@ -141,12 +142,19 @@ impl Supervisor {
         })?;
         let log_path = log_dir.join("sidecar.log");
 
-        let resource_dir = app.path().resource_dir().map_err(|e| IpcError::Other {
-            code: "FFPROBE_MISSING".into(),
-            message: format!("failed to resolve resource directory: {e}"),
-            details: None,
-        })?;
-        let ffprobe_path = resource_dir.join("binaries").join(bundled_ffprobe_basename());
+        // ffprobe is bundled as an `externalBin` sidecar, so Tauri places it
+        // beside the main executable (triple suffix stripped) in both
+        // `tauri dev` (target/<profile>/) and packaged builds
+        // (e.g. *.app/Contents/MacOS/) — never under the resource dir. Resolve
+        // it there and pass the path to the Go sidecar via STUDIO_FFPROBE_PATH.
+        let ffprobe_path = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join(bundled_ffprobe_filename())))
+            .ok_or_else(|| IpcError::Other {
+                code: "FFPROBE_MISSING".into(),
+                message: "failed to resolve executable directory for bundled ffprobe".into(),
+                details: None,
+            })?;
         if !ffprobe_path.exists() {
             return Err(IpcError::Other {
                 code: "FFPROBE_MISSING".into(),
@@ -456,14 +464,12 @@ mod tests {
     }
 
     #[test]
-    fn bundled_ffprobe_basename_uses_compile_time_triple() {
-        let name = bundled_ffprobe_basename();
-        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        assert_eq!(name, "ffprobe-x86_64-apple-darwin");
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        assert_eq!(name, "ffprobe-aarch64-apple-darwin");
-        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        assert_eq!(name, "ffprobe-x86_64-pc-windows-msvc.exe");
+    fn bundled_ffprobe_filename_strips_triple_suffix() {
+        let name = bundled_ffprobe_filename();
+        #[cfg(windows)]
+        assert_eq!(name, "ffprobe.exe");
+        #[cfg(not(windows))]
+        assert_eq!(name, "ffprobe");
     }
 
     /// Verify that `send` serialises an envelope and appends exactly one `\n`.
