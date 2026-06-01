@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event.action == 'synchronize' && '["windows-latest"]' || '["windows-latest", "macos-26-intel", "macos-26"]') }}
+        os: ${{ fromJSON(github.event.action == 'synchronize' && '["windows-latest"]' || '["windows-latest", "macos-latest"]') }}
 
     steps:
       - name: Checkout
@@ -68,11 +68,21 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
-            ls -l app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
-            test -s app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe || { echo "no Windows ffprobe artifact"; exit 1; }
+            artifact=app/src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+          elif [ "$RUNNER_ARCH" = "ARM64" ]; then
+            artifact=app/src-tauri/binaries/ffprobe-aarch64-apple-darwin
           else
-            echo "No macOS ffprobe in lock (BtbN does not publish macOS builds); skipping artifact check."
+            artifact=app/src-tauri/binaries/ffprobe-x86_64-apple-darwin
           fi
+          ls -l "$artifact"
+          test -s "$artifact" || { echo "no ffprobe artifact at $artifact"; exit 1; }
+
+      - name: Build sidecar
+        run: npm run sidecar:build
+
+      - name: Verify sidecar artifacts
+        run: |
+          node -e 'const fs = require("fs"); const paths = ["app/src-tauri/binaries/studio-sidecar-x86_64-pc-windows-msvc.exe", "app/src-tauri/binaries/studio-sidecar-x86_64-apple-darwin", "app/src-tauri/binaries/studio-sidecar-aarch64-apple-darwin"]; for (const path of paths) { if (!fs.existsSync(path)) { console.error("Missing " + path); process.exit(1); } }'
 
       - name: Generate schemas
         run: npm run gen:schemas
@@ -92,17 +102,13 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Test (Rust)
+        run: cargo test --manifest-path app/src-tauri/Cargo.toml --lib
+
       - name: Integration tests (sidecar E2E)
         env:
           STUDIO_FFPROBE_PATH: ${{ runner.os == 'Windows' && format('{0}\app\src-tauri\binaries\ffprobe-x86_64-pc-windows-msvc.exe', github.workspace) || (runner.arch == 'ARM64' && format('{0}/app/src-tauri/binaries/ffprobe-aarch64-apple-darwin', github.workspace) || format('{0}/app/src-tauri/binaries/ffprobe-x86_64-apple-darwin', github.workspace)) }}
         run: cd sidecar && go test -tags=integration ./...
-
-      - name: Build sidecar
-        run: npm run sidecar:build
-
-      - name: Verify sidecar artifacts
-        run: |
-          node -e 'const fs = require("fs"); const paths = ["app/src-tauri/binaries/studio-sidecar-x86_64-pc-windows-msvc.exe", "app/src-tauri/binaries/studio-sidecar-x86_64-apple-darwin", "app/src-tauri/binaries/studio-sidecar-aarch64-apple-darwin"]; for (const path of paths) { if (!fs.existsSync(path)) { console.error("Missing " + path); process.exit(1); } }'
 
       - name: Build app
         run: npm run build -w app

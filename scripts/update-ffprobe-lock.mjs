@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Maintenance script: regenerates the bundled ffprobe binaries and
-// third_party/ffprobe.lock.json from upstream BtbN/FFmpeg-Builds releases.
+// third_party/ffprobe.lock.json from upstream releases. Windows comes from
+// BtbN/FFmpeg-Builds; macOS from osxexperts.net (BtbN ships no macOS builds).
 //
 // For each configured platform it downloads the upstream archive, extracts
 // ffprobe, stores it gzip-compressed under third_party/ffprobe/ (so the
@@ -21,6 +22,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -45,15 +47,31 @@ mkdirSync(cacheDir, { recursive: true });
 
 const VERSION = '7.1';
 const TAG = 'latest';
-const BASE = `https://github.com/BtbN/FFmpeg-Builds/releases/download/${TAG}`;
+const BTBN = `https://github.com/BtbN/FFmpeg-Builds/releases/download/${TAG}`;
+const WIN_DIR = `ffmpeg-n${VERSION}-${TAG}-win64-gpl-${VERSION}`;
 
-// Self-contained (statically linked) GPL builds: one ffprobe binary, no DLLs.
+// Each platform pins a self-contained (statically linked) GPL ffprobe:
+// one executable, no DLLs. Windows comes from BtbN/FFmpeg-Builds; macOS
+// from osxexperts.net, the only source publishing static single-file macOS
+// builds (BtbN ships no macOS artifacts). `innerPath` is the entry inside
+// the archive; `licenseInner`, when present, is extracted alongside the
+// binary as LICENSE.ffmpeg-gpl.txt (the osxexperts zips carry no license).
 const PLATFORMS = {
   'windows-amd64': {
-    archive: `ffmpeg-n${VERSION}-${TAG}-win64-gpl-${VERSION}.zip`,
-    dir: `ffmpeg-n${VERSION}-${TAG}-win64-gpl-${VERSION}`,
-    innerExe: 'bin/ffprobe.exe',
+    url: `${BTBN}/${WIN_DIR}.zip`,
+    innerPath: `${WIN_DIR}/bin/ffprobe.exe`,
     bundledName: 'ffprobe-x86_64-pc-windows-msvc.exe.gz',
+    licenseInner: `${WIN_DIR}/LICENSE.txt`,
+  },
+  'macos-arm64': {
+    url: 'https://www.osxexperts.net/ffprobe71arm.zip',
+    innerPath: 'ffprobe',
+    bundledName: 'ffprobe-aarch64-apple-darwin.gz',
+  },
+  'macos-amd64': {
+    url: 'https://www.osxexperts.net/ffprobe71intel.zip',
+    innerPath: 'ffprobe',
+    bundledName: 'ffprobe-x86_64-apple-darwin.gz',
   },
 };
 
@@ -61,48 +79,71 @@ async function gzipFile(src, dest) {
   await pipeline(createReadStream(src), createGzip({ level: 9 }), createWriteStream(dest));
 }
 
+// Reuse an already-provisioned platform verbatim when its checked-in,
+// gzip-compressed binary is still present, so regenerating one platform
+// never re-downloads (and silently bumps) another from a rolling "latest"
+// tag. Delete the bundled .gz to force a platform to be re-fetched.
+const lockPath = join(rootDir, 'third_party/ffprobe.lock.json');
+const prevLock = existsSync(lockPath)
+  ? JSON.parse(readFileSync(lockPath, 'utf8'))
+  : { platforms: {} };
+
 const platforms = {};
 for (const [key, p] of Object.entries(PLATFORMS)) {
-  const url = `${BASE}/${p.archive}`;
-  const cachedArchive = join(cacheDir, basename(p.archive));
+  const bundledRel  = `third_party/ffprobe/${p.bundledName}`;
+  const bundledPath = join(bundleDir, p.bundledName);
+  const prev = prevLock.platforms?.[key];
+
+  if (prev && existsSync(bundledPath)) {
+    console.log(`update-ffprobe-lock: reusing existing ${key} (${bundledRel})`);
+    platforms[key] = prev;
+    continue;
+  }
+
+  const cachedArchive = join(cacheDir, basename(new URL(p.url).pathname));
   if (!existsSync(cachedArchive)) {
-    console.log(`update-ffprobe-lock: downloading ${url}`);
-    await download(url, cachedArchive);
+    console.log(`update-ffprobe-lock: downloading ${p.url}`);
+    await download(p.url, cachedArchive);
   } else {
     console.log(`update-ffprobe-lock: using cached ${cachedArchive}`);
   }
 
-  const innerPath = `${p.dir}/${p.innerExe}`;
   const tmpExe = join(tmpdir(), `ffprobe-${key}-${process.pid}`);
-  console.log(`update-ffprobe-lock: extracting ${innerPath}`);
-  await extractInner(cachedArchive, url, innerPath, tmpExe);
+  console.log(`update-ffprobe-lock: extracting ${p.innerPath}`);
+  let binarySha256;
+  try {
+    await extractInner(cachedArchive, p.url, p.innerPath, tmpExe);
 
-  const binarySha256 = await sha256OfFile(tmpExe);
-  const bundledRel = `third_party/ffprobe/${p.bundledName}`;
-  console.log(`update-ffprobe-lock: writing ${bundledRel}`);
-  await gzipFile(tmpExe, join(bundleDir, p.bundledName));
-  rmSync(tmpExe, { force: true });
+    binarySha256 = await sha256OfFile(tmpExe);
+    console.log(`update-ffprobe-lock: writing ${bundledRel}`);
+    await gzipFile(tmpExe, bundledPath);
+  } finally {
+    rmSync(tmpExe, { force: true });
+  }
 
-  // Extract the upstream license text alongside the binary.
-  const licenseInner = `${p.dir}/LICENSE.txt`;
-  extractZipEntry(cachedArchive, licenseInner, join(bundleDir, 'LICENSE.ffmpeg-gpl.txt'));
+  // The GPL builds ship FFmpeg's license; extract it when the archive
+  // carries one (BtbN does; the osxexperts single-file zips do not).
+  if (p.licenseInner) {
+    extractZipEntry(cachedArchive, p.licenseInner, join(bundleDir, 'LICENSE.ffmpeg-gpl.txt'));
+  }
 
   platforms[key] = {
     bundled: bundledRel,
     binarySha256,
-    url,
+    url: p.url,
     sha256: await sha256OfFile(cachedArchive),
-    innerPath,
+    innerPath: p.innerPath,
   };
 }
 
 const lock = {
   version: VERSION,
-  source: `https://github.com/BtbN/FFmpeg-Builds (GPL static builds, release tag: ${TAG})`,
+  source:
+    `Windows from https://github.com/BtbN/FFmpeg-Builds (GPL static builds, release tag: ${TAG}); ` +
+    `macOS from https://www.osxexperts.net (GPL static builds, FFmpeg ${VERSION}).`,
   note: 'Binaries are checked in (gzip-compressed) under third_party/ffprobe/. Regenerate with scripts/update-ffprobe-lock.mjs.',
   platforms,
 };
 
-const lockPath = join(rootDir, 'third_party/ffprobe.lock.json');
 writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
 console.log('update-ffprobe-lock: done');
